@@ -72,6 +72,33 @@ describe("component export format", () => {
       ].join("\t")
     ].join("\n"));
   });
+
+  it("reflects mapped official API classifications in the internal columns", () => {
+    const row: Section3Row = {
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Methylethylketoxime 96-29-7 0.1~1",
+      casNoCandidate: "96-29-7",
+      chemicalNameCandidate: "Methylethylketoxime",
+      contentMinCandidate: "0.1",
+      contentMaxCandidate: "1",
+      contentSingleCandidate: "",
+      contentText: "0.1~1",
+      confidence: 0.92,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review",
+      regulatoryMatches: [
+        match("chemicalInfoLookup", "공식 API 조회됨", "메틸 에틸 케톡심 / 96-29-7 / KE-03881"),
+        match("toxic", "공식 API 조회됨", "인체등유해성물질 / 2023-1-1127 / 인체만성유해성 : 0.1%"),
+        match("restricted", "공식 API 조회됨", "제한물질 / 06-5-8")
+      ]
+    };
+
+    const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
+
+    expect(values[15]).toBe("Y");
+    expect(values[17]).toBe("Y");
+  });
 });
 
 function match(category: string, status: string, evidenceText: string) {

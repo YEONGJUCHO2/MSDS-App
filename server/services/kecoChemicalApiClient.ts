@@ -6,7 +6,7 @@ type Fetcher = (url: string) => Promise<{ ok: boolean; text(): Promise<string>; 
 
 export async function lookupKecoChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch) {
   const cached = getChemicalApiCache(db, "keco", casNo);
-  if (cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now()) {
+  if (cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now() && isSuccessfulKecoResponse(cached.responseText)) {
     return {
       cacheStatus: "hit" as const,
       matches: parseKecoResponse(casNo, cached.responseText, cached.requestUrl)
@@ -34,6 +34,19 @@ export async function lookupKecoChemicalInfo(db: Database.Database, casNo: strin
     throw new Error(`KECO chemical API lookup failed: ${response.status ?? "unknown"}`);
   }
 
+  const resultCode = readKecoResultCode(responseText);
+  if (resultCode && resultCode !== "200" && resultCode !== "00") {
+    upsertChemicalApiCache(db, {
+      provider: "keco",
+      casNo,
+      requestUrl: url.toString(),
+      responseText,
+      status: `api_${resultCode}`,
+      ttlDays: 1
+    });
+    return { cacheStatus: "miss" as const, matches: [] as OfficialChemicalMatch[] };
+  }
+
   upsertChemicalApiCache(db, {
     provider: "keco",
     casNo,
@@ -56,9 +69,10 @@ function buildKecoUrl(endpoint: string, serviceKey: string, casNo: string) {
   const url = new URL(normalizeKecoEndpoint(endpoint));
   url.searchParams.set("serviceKey", serviceKey);
   url.searchParams.set("searchGubun", "2");
-  url.searchParams.set("casNo", casNo);
+  url.searchParams.set("searchNm", casNo);
   url.searchParams.set("numOfRows", "10");
   url.searchParams.set("pageNo", "1");
+  url.searchParams.set("returnType", "JSON");
   return url;
 }
 
@@ -85,13 +99,29 @@ function parseKecoResponse(casNo: string, responseText: string, sourceUrl: strin
   const items = normalizeItems(parsed);
   if (items.length === 0) return [];
 
-  return items.map((item) => ({
-    casNo: String(item.casNo ?? item.cas_no ?? casNo),
-    category: "chemicalInfoLookup",
-    sourceName: "한국환경공단 화학물질 정보 조회 서비스",
-    sourceUrl,
-    evidenceText: summarizeItem(item)
-  }));
+  return items.flatMap((item) => {
+    const parsedCasNo = String(item.casNo ?? item.cas_no ?? casNo);
+    const baseMatch: OfficialChemicalMatch = {
+      casNo: parsedCasNo,
+      category: "chemicalInfoLookup",
+      sourceName: "한국환경공단 화학물질 정보 조회 서비스",
+      sourceUrl,
+      evidenceText: summarizeItem(item)
+    };
+    const classificationMatches = normalizeTypeList(item.typeList).flatMap((classification) => {
+      const category = mapKecoClassificationToInternalCategory(String(classification.sbstnClsfTypeNm ?? ""));
+      if (!category) return [];
+      return [{
+        casNo: parsedCasNo,
+        category,
+        sourceName: "한국환경공단 화학물질 정보 조회 서비스",
+        sourceUrl,
+        evidenceText: summarizeClassification(classification)
+      }];
+    });
+
+    return [baseMatch, ...classificationMatches];
+  });
 }
 
 function tryParseJson(text: string) {
@@ -134,6 +164,49 @@ function summarizeItem(item: Record<string, unknown>) {
     valueOf(item, ["mlcwgt", "molWt", "molecularWeight", "분자량"])
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" / ") : JSON.stringify(item).slice(0, 1000);
+}
+
+function normalizeTypeList(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) return value.filter(isRecord);
+  if (isRecord(value)) return [value];
+  return [];
+}
+
+function mapKecoClassificationToInternalCategory(classificationName: string) {
+  const normalized = classificationName.replace(/\s+/g, "");
+  if (!normalized) return "";
+  if (normalized.includes("사고대비물질")) return "accidentPreparedness";
+  if (normalized.includes("제한물질")) return "restricted";
+  if (normalized.includes("금지물질")) return "prohibited";
+  if (normalized.includes("허가물질")) return "permitted";
+  if (normalized.includes("유독물질") || normalized.includes("인체등유해성물질") || normalized.includes("생태등유해성물질")) return "toxic";
+  return "";
+}
+
+function summarizeClassification(classification: Record<string, unknown>) {
+  return [
+    valueOf(classification, ["sbstnClsfTypeNm"]),
+    valueOf(classification, ["unqNo"]),
+    valueOf(classification, ["contInfo"]),
+    valueOf(classification, ["excpInfo"]),
+    valueOf(classification, ["ancmntInfo"]),
+    valueOf(classification, ["ancmntYmd"])
+  ].filter(Boolean).join(" / ");
+}
+
+function isSuccessfulKecoResponse(responseText: string) {
+  const resultCode = readKecoResultCode(responseText);
+  return !resultCode || resultCode === "200" || resultCode === "00";
+}
+
+function readKecoResultCode(responseText: string) {
+  const parsed = tryParseJson(responseText);
+  if (isRecord(parsed)) {
+    const header = isRecord(parsed.header) ? parsed.header : isRecord(parsed.response) && isRecord(parsed.response.header) ? parsed.response.header : undefined;
+    const code = header?.resultCode;
+    return code === undefined || code === null ? "" : String(code);
+  }
+  return responseText.match(/<resultCode>([\s\S]*?)<\/resultCode>/)?.[1]?.trim() ?? "";
 }
 
 function valueOf(item: Record<string, unknown>, keys: string[]) {

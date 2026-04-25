@@ -48,7 +48,7 @@ export function ComponentReviewPanel({ rows, onRecheck, recheckMessages = {}, re
                     {row.rowId && recheckMessages[row.rowId] ? <span className="lookup-feedback compact">{recheckMessages[row.rowId]}</span> : null}
                     {row.rowId && onRecheck ? (
                       <button className="table-action" disabled={recheckingRowId === row.rowId} onClick={() => onRecheck(row.rowId!)} type="button">
-                        {recheckingRowId === row.rowId ? "조회중" : "공식조회"}
+                        {recheckingRowId === row.rowId ? "조회중" : "재조회"}
                       </button>
                     ) : null}
                   </td>

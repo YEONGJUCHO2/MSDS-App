@@ -45,7 +45,7 @@ describe("ComponentReviewPanel", () => {
     expect(screen.queryByRole("button", { name: "제외" })).not.toBeInTheDocument();
   });
 
-  it("lets users manually recheck official data for a component row", () => {
+  it("keeps a manual recheck action for exceptional component rows", () => {
     const onRecheck = vi.fn();
     render(
       <ComponentReviewPanel
@@ -67,7 +67,7 @@ describe("ComponentReviewPanel", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "공식조회" }));
+    fireEvent.click(screen.getByRole("button", { name: "재조회" }));
 
     expect(onRecheck).toHaveBeenCalledWith("row-1");
   });
