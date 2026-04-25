@@ -66,7 +66,7 @@ export interface BasicInfoField {
   key: string;
   label: string;
   value: string;
-  source: "msds_text" | "file_name" | "linked_site" | "system" | "manual_required" | "user_saved";
+  source: "msds_text" | "file_name" | "linked_site" | "system" | "manual_required" | "user_saved" | "codex_cli";
 }
 
 export interface DocumentBasicInfo {

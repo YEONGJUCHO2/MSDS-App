@@ -432,7 +432,8 @@ input {
 .basic-info-value.source-file_name,
 .basic-info-value.source-linked_site,
 .basic-info-value.source-system,
-.basic-info-value.source-user_saved {
+.basic-info-value.source-user_saved,
+.basic-info-value.source-codex_cli {
   background: #d7edf7;
 }
 
