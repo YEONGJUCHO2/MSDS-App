@@ -107,6 +107,17 @@ export function insertManualComponentRow(db: Database.Database, documentId: stri
 export function updateComponentCandidate(db: Database.Database, rowId: string, input: ComponentCandidateInput) {
   const contentText = formatContentText(input);
   const rawRowText = [input.chemicalNameCandidate, input.casNoCandidate, contentText].filter(Boolean).join(" ");
+  const current = db.prepare(`
+    SELECT
+      cas_no_candidate AS casNoCandidate,
+      chemical_name_candidate AS chemicalNameCandidate,
+      content_min_candidate AS contentMinCandidate,
+      content_max_candidate AS contentMaxCandidate,
+      content_single_candidate AS contentSingleCandidate
+    FROM components
+    WHERE row_id = ?
+  `).get(rowId) as ComponentCandidateInput | undefined;
+  const changed = !current || !componentCandidateEquals(current, input);
   const transaction = db.transaction(() => {
     db.prepare(`
       UPDATE components
@@ -121,10 +132,12 @@ export function updateComponentCandidate(db: Database.Database, rowId: string, i
         review_status = 'edited',
         ai_review_status = 'ai_needs_attention',
         ai_review_note = '사용자가 수정한 성분입니다.',
-        regulatory_match_status = 'not_checked'
+        regulatory_match_status = CASE WHEN @changed THEN 'not_checked' ELSE regulatory_match_status END
       WHERE row_id = @rowId
-    `).run({ rowId, rawRowText, contentText, ...input });
-    db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+    `).run({ rowId, rawRowText, contentText, changed: changed ? 1 : 0, ...input });
+    if (changed) {
+      db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+    }
     db.prepare(`
       UPDATE review_queue
       SET
@@ -185,6 +198,14 @@ function formatContentText(input: ComponentCandidateInput) {
     return `${input.contentMinCandidate.trim()}~${input.contentMaxCandidate.trim()}`.replace(/^~/, "").replace(/~$/, "");
   }
   return "";
+}
+
+function componentCandidateEquals(a: ComponentCandidateInput, b: ComponentCandidateInput) {
+  return a.casNoCandidate === b.casNoCandidate
+    && a.chemicalNameCandidate === b.chemicalNameCandidate
+    && a.contentMinCandidate === b.contentMinCandidate
+    && a.contentMaxCandidate === b.contentMaxCandidate
+    && a.contentSingleCandidate === b.contentSingleCandidate;
 }
 
 export function listReviewQueue(db: Database.Database) {

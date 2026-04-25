@@ -33,6 +33,8 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
   const [adding, setAdding] = useState(false);
   const [addDraft, setAddDraft] = useState<ComponentCandidatePayload>(blankCandidate);
   const [recheckAfterSave, setRecheckAfterSave] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   function copyAllRows() {
     void navigator.clipboard?.writeText(formatComponentRowsAsTsv(rows));
@@ -43,20 +45,45 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
     setEditingRowId(row.rowId ?? "");
     setDraft(toPayload(row));
     setRecheckAfterSave(false);
+    setFormError("");
   }
 
-  function saveEdit() {
-    if (!editingRowId || !onUpdate) return;
-    onUpdate(editingRowId, draft, recheckAfterSave);
-    setEditingRowId("");
+  async function saveEdit() {
+    if (!editingRowId || !onUpdate || saving) return;
+    if (!isValidCandidate(draft)) {
+      setFormError("CAS No. 또는 화학물질명 중 하나는 필요합니다.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      await onUpdate(editingRowId, draft, recheckAfterSave);
+      setEditingRowId("");
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function saveAdd() {
-    if (!onAdd) return;
-    onAdd(addDraft, recheckAfterSave);
-    setAddDraft(blankCandidate);
-    setRecheckAfterSave(false);
-    setAdding(false);
+  async function saveAdd() {
+    if (!onAdd || saving) return;
+    if (!isValidCandidate(addDraft)) {
+      setFormError("CAS No. 또는 화학물질명 중 하나는 필요합니다.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      await onAdd(addDraft, recheckAfterSave);
+      setAddDraft(blankCandidate);
+      setRecheckAfterSave(false);
+      setAdding(false);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "저장에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -68,6 +95,7 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
           setEditingRowId("");
           setAdding(true);
           setRecheckAfterSave(false);
+          setFormError("");
         }} type="button">추가</button> : null}
         <button disabled={rows.length === 0} onClick={copyAllRows} type="button">전체 복사</button>
       </div>
@@ -76,6 +104,8 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
           draft={addDraft}
           primaryLabel="추가 저장"
           recheckAfterSave={recheckAfterSave}
+          errorMessage={formError}
+          saving={saving}
           onCancel={() => setAdding(false)}
           onChange={setAddDraft}
           onRecheckAfterSaveChange={setRecheckAfterSave}
@@ -106,6 +136,8 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
                         draft={draft}
                         primaryLabel="저장"
                         recheckAfterSave={recheckAfterSave}
+                        errorMessage={formError}
+                        saving={saving}
                         onCancel={() => setEditingRowId("")}
                         onChange={setDraft}
                         onRecheckAfterSaveChange={setRecheckAfterSave}
@@ -138,20 +170,24 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
 
 function ComponentEditForm({
   draft,
+  errorMessage,
   onCancel,
   onChange,
   onRecheckAfterSaveChange,
   onSubmit,
   primaryLabel,
-  recheckAfterSave
+  recheckAfterSave,
+  saving
 }: {
   draft: ComponentCandidatePayload;
+  errorMessage?: string;
   onCancel: () => void;
   onChange: (draft: ComponentCandidatePayload) => void;
   onRecheckAfterSaveChange: (checked: boolean) => void;
   onSubmit: () => void;
   primaryLabel: string;
   recheckAfterSave: boolean;
+  saving?: boolean;
 }) {
   function update<K extends keyof ComponentCandidatePayload>(key: K, value: ComponentCandidatePayload[K]) {
     onChange({ ...draft, [key]: value });
@@ -184,9 +220,10 @@ function ComponentEditForm({
         저장 후 API 재조회
       </label>
       <div className="edit-actions">
-        <button onClick={onSubmit} type="button">{primaryLabel}</button>
-        <button onClick={onCancel} type="button">취소</button>
+        <button disabled={saving} onClick={onSubmit} type="button">{saving ? "저장중" : primaryLabel}</button>
+        <button disabled={saving} onClick={onCancel} type="button">취소</button>
       </div>
+      {errorMessage ? <p className="lookup-feedback compact edit-error">{errorMessage}</p> : null}
     </div>
   );
 }
@@ -199,4 +236,8 @@ function toPayload(row: Section3Row): ComponentCandidatePayload {
     contentMaxCandidate: row.contentMaxCandidate,
     contentSingleCandidate: row.contentSingleCandidate
   };
+}
+
+function isValidCandidate(candidate: ComponentCandidatePayload) {
+  return Boolean(candidate.casNoCandidate.trim() || candidate.chemicalNameCandidate.trim());
 }

@@ -31,7 +31,38 @@ describe("component editing", () => {
     ]);
   });
 
-  it("updates component candidates and clears stale regulatory matches", () => {
+  it("preserves regulatory matches when saving an unchanged component candidate", () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    const rowId = insertManualComponentRow(db, "doc-1", {
+      casNoCandidate: "96-29-7",
+      chemicalNameCandidate: "Methylethylketoxime",
+      contentMinCandidate: "0.1",
+      contentMaxCandidate: "1",
+      contentSingleCandidate: ""
+    });
+    db.prepare(`
+      INSERT INTO regulatory_matches (
+        match_id, row_id, document_id, cas_no, category, status, source_type,
+        source_name, source_url, evidence_text, checked_at
+      ) VALUES ('match-1', ?, 'doc-1', '96-29-7', 'toxic', '공식 API 조회됨', 'official_api', 'KECO', '', '', '2026-04-25')
+    `).run(rowId);
+    db.prepare("UPDATE components SET regulatory_match_status = 'official_api_matched' WHERE row_id = ?").run(rowId);
+
+    updateComponentCandidate(db, rowId, {
+      casNoCandidate: "96-29-7",
+      chemicalNameCandidate: "Methylethylketoxime",
+      contentMinCandidate: "0.1",
+      contentMaxCandidate: "1",
+      contentSingleCandidate: ""
+    });
+
+    expect(listComponentRows(db, "doc-1")[0].regulatoryMatches).toHaveLength(1);
+    expect(listComponentRows(db, "doc-1")[0].regulatoryMatchStatus).toBe("official_api_matched");
+  });
+
+  it("updates changed component candidates and clears stale regulatory matches", () => {
     const db = new Database(":memory:");
     migrate(db);
     insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });

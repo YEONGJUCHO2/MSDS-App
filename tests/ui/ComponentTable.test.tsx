@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ComponentTable } from "../../src/components/ComponentTable";
 
@@ -100,7 +100,7 @@ describe("ComponentTable", () => {
     expect(screen.queryByRole("cell", { name: "Y" })).not.toBeInTheDocument();
   });
 
-  it("allows users to add, edit, recheck, and remove component rows from the export table", () => {
+  it("allows users to add, edit, recheck, and remove component rows from the export table", async () => {
     const onAdd = vi.fn();
     const onUpdate = vi.fn();
     const onRemove = vi.fn();
@@ -145,6 +145,7 @@ describe("ComponentTable", () => {
       contentSingleCandidate: ""
     }, true);
 
+    await waitFor(() => expect(screen.getByRole("button", { name: "재조회" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "재조회" }));
     expect(onRecheck).toHaveBeenCalledWith("row-1");
 
@@ -165,5 +166,31 @@ describe("ComponentTable", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "제거" }));
     expect(onRemove).toHaveBeenCalledWith("row-1");
+  });
+
+  it("keeps the add form open with feedback when saving invalid input", () => {
+    const onAdd = vi.fn();
+
+    render(<ComponentTable rows={[]} onAdd={onAdd} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "추가" }));
+    fireEvent.click(screen.getByRole("button", { name: "추가 저장" }));
+
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "추가 저장" })).toBeInTheDocument();
+    expect(screen.getByText("CAS No. 또는 화학물질명 중 하나는 필요합니다.")).toBeInTheDocument();
+  });
+
+  it("keeps the add form open with feedback when the save request fails", async () => {
+    const onAdd = vi.fn().mockRejectedValue(new Error("저장 실패"));
+
+    render(<ComponentTable rows={[]} onAdd={onAdd} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "추가" }));
+    fireEvent.change(screen.getByLabelText("CAS No."), { target: { value: "96-29-7" } });
+    fireEvent.click(screen.getByRole("button", { name: "추가 저장" }));
+
+    await waitFor(() => expect(screen.getByText("저장 실패")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "추가 저장" })).toBeInTheDocument();
   });
 });
