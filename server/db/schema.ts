@@ -1,0 +1,97 @@
+import type Database from "better-sqlite3";
+
+export function migrate(db: Database.Database) {
+  db.exec(`
+    PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS documents (
+      document_id TEXT PRIMARY KEY,
+      file_name TEXT NOT NULL,
+      file_hash TEXT NOT NULL,
+      storage_path TEXT NOT NULL,
+      status TEXT NOT NULL,
+      uploaded_at TEXT NOT NULL,
+      text_content TEXT NOT NULL DEFAULT '',
+      page_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS products (
+      product_id TEXT PRIMARY KEY,
+      product_name TEXT NOT NULL,
+      supplier TEXT NOT NULL DEFAULT '',
+      manufacturer TEXT NOT NULL DEFAULT '',
+      site_names TEXT NOT NULL DEFAULT '',
+      registration_status TEXT NOT NULL DEFAULT 'not_registered',
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS components (
+      row_id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      row_index INTEGER NOT NULL,
+      raw_row_text TEXT NOT NULL,
+      cas_no_candidate TEXT NOT NULL,
+      chemical_name_candidate TEXT NOT NULL,
+      content_min_candidate TEXT NOT NULL,
+      content_max_candidate TEXT NOT NULL,
+      content_single_candidate TEXT NOT NULL,
+      content_text TEXT NOT NULL,
+      confidence REAL NOT NULL,
+      evidence_location TEXT NOT NULL,
+      review_status TEXT NOT NULL,
+      FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS review_queue (
+      queue_id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL,
+      field_type TEXT NOT NULL,
+      label TEXT NOT NULL,
+      candidate_value TEXT NOT NULL,
+      evidence TEXT NOT NULL,
+      review_status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS regulatory_seeds (
+      seed_id TEXT PRIMARY KEY,
+      category TEXT NOT NULL,
+      cas_no TEXT NOT NULL,
+      chemical_name_ko TEXT NOT NULL,
+      chemical_name_en TEXT NOT NULL,
+      synonyms TEXT NOT NULL,
+      threshold_text TEXT NOT NULL,
+      period_value TEXT NOT NULL,
+      period_unit TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      source_url TEXT NOT NULL,
+      source_revision_date TEXT NOT NULL,
+      note TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_regulatory_seeds_cas_no ON regulatory_seeds(cas_no);
+    CREATE INDEX IF NOT EXISTS idx_components_document_id ON components(document_id);
+    CREATE INDEX IF NOT EXISTS idx_review_queue_status ON review_queue(review_status);
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      audit_id TEXT PRIMARY KEY,
+      actor TEXT NOT NULL,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT NOT NULL,
+      before_json TEXT NOT NULL,
+      after_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS watchlist (
+      watch_id TEXT PRIMARY KEY,
+      cas_no TEXT NOT NULL UNIQUE,
+      chemical_name TEXT NOT NULL,
+      last_source_name TEXT NOT NULL,
+      last_checked_at TEXT NOT NULL,
+      status TEXT NOT NULL
+    );
+  `);
+}

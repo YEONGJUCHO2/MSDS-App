@@ -1,0 +1,35 @@
+import type { Section3Row } from "../../shared/types";
+import { StatusBadge } from "./StatusBadge";
+
+export function ComponentTable({ rows }: { rows: Section3Row[] }) {
+  return (
+    <div className="table-shell">
+      <table>
+        <thead>
+          <tr>
+            <th>CAS No.</th>
+            <th>화학물질</th>
+            <th>MIN</th>
+            <th>MAX</th>
+            <th>단일</th>
+            <th>근거</th>
+            <th>상태</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.rowId}>
+              <td>{row.casNoCandidate}</td>
+              <td>{row.chemicalNameCandidate}</td>
+              <td>{row.contentMinCandidate || "-"}</td>
+              <td>{row.contentMaxCandidate || "-"}</td>
+              <td>{row.contentSingleCandidate || "-"}</td>
+              <td>{row.evidenceLocation}</td>
+              <td><StatusBadge status={row.reviewStatus} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}

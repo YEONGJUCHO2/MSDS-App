@@ -1,0 +1,4 @@
+category,cas_no,chemical_name_ko,chemical_name_en,synonyms,threshold_text,period_value,period_unit,source_name,source_url,source_revision_date,note
+workEnvironmentMeasurement,67-64-1,아세톤,Acetone,,내부 작업환경측정 후보,6,개월,내부 기준표,internal://seed/work-environment,2026-04-25,공식 기준 반영 전 검수 필요
+specialHealthExam,67-64-1,아세톤,Acetone,,내부 특수건강검진 후보,12,개월,내부 기준표,internal://seed/special-health,2026-04-25,공식 기준 반영 전 검수 필요
+managedHazardousSubstance,108-88-3,톨루엔,Toluene,,관리대상유해물질 후보,,,내부 기준표,internal://seed/managed-hazard,2026-04-25,공식 기준 반영 전 검수 필요
