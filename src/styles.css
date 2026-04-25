@@ -375,9 +375,17 @@ input {
   overflow: hidden;
 }
 
+.basic-info-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #607083;
+  font-size: 13px;
+}
+
 .basic-info-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid #d6dee6;
   border-bottom: 0;
   border-right: 0;
@@ -406,19 +414,25 @@ input {
 .basic-info-value {
   display: flex;
   align-items: center;
+  width: 100%;
   min-width: 0;
   min-height: 42px;
   padding: 8px 10px;
   border-left: 1px solid #e1e6eb;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
   background: #f7f8fa;
   color: #516070;
+  font: inherit;
   overflow-wrap: anywhere;
 }
 
 .basic-info-value.source-msds_text,
 .basic-info-value.source-file_name,
 .basic-info-value.source-linked_site,
-.basic-info-value.source-system {
+.basic-info-value.source-system,
+.basic-info-value.source-user_saved {
   background: #d7edf7;
 }
 

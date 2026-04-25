@@ -1,22 +1,72 @@
+import { useEffect, useState, type FormEvent } from "react";
 import type { BasicInfoField } from "../../shared/types";
 
-export function BasicInfoPanel({ fields }: { fields: BasicInfoField[] }) {
+interface BasicInfoPanelProps {
+  documentId: string;
+  fields: BasicInfoField[];
+  onSave: (fields: BasicInfoField[]) => Promise<void>;
+}
+
+export function BasicInfoPanel({ documentId, fields, onSave }: BasicInfoPanelProps) {
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({});
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  useEffect(() => {
+    setDraftValues(Object.fromEntries(fields.map((field) => [field.key, field.value])));
+  }, [fields]);
+
+  useEffect(() => {
+    setSaveState("idle");
+  }, [documentId]);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaveState("saving");
+    try {
+      await onSave(fields.map((field) => ({
+        ...field,
+        value: draftValues[field.key] ?? ""
+      })));
+      setSaveState("saved");
+    } catch {
+      setSaveState("error");
+    }
+  }
+
   return (
-    <section className="panel basic-info-panel">
+    <form className="panel basic-info-panel" onSubmit={handleSubmit}>
       <div className="panel-title">
         <h2>물품 기본 정보</h2>
-        <span>사내 등록 화면 기준</span>
+        <div className="basic-info-actions">
+          <span>{saveStateLabel(saveState)}</span>
+          <button data-testid="basic-info-save" disabled={fields.length === 0 || saveState === "saving"} type="submit">저장</button>
+        </div>
       </div>
       <div className="basic-info-grid">
         {fields.map((field) => (
           <div className="basic-info-pair" key={field.key}>
-            <div className="basic-info-label">{field.label}</div>
-            <div className={`basic-info-value source-${field.source}`}>
-              {field.value || "수동입력 필요"}
-            </div>
+            <label className="basic-info-label" htmlFor={`basic-${field.key}`}>{field.label}</label>
+            <input
+              className={`basic-info-value source-${field.source}`}
+              id={`basic-${field.key}`}
+              onChange={(event) => {
+                setDraftValues((current) => ({ ...current, [field.key]: event.target.value }));
+                setSaveState("idle");
+              }}
+              placeholder="수동입력 필요"
+              type="text"
+              value={draftValues[field.key] ?? ""}
+            />
           </div>
         ))}
       </div>
-    </section>
+    </form>
   );
+}
+
+function saveStateLabel(saveState: "idle" | "saving" | "saved" | "error") {
+  if (saveState === "saving") return "저장 중";
+  if (saveState === "saved") return "저장됨";
+  if (saveState === "error") return "저장 실패";
+  return "사내 등록 화면 기준";
 }

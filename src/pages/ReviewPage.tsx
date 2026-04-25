@@ -69,6 +69,12 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
     setRows(result.rows);
   }
 
+  async function handleSaveBasicInfo(fields: BasicInfoField[]) {
+    if (!selectedId) return;
+    const result = await api.saveDocumentBasicInfo(selectedId, fields);
+    setBasicInfoFields(result.fields);
+  }
+
   return (
     <main className="review-layout">
       <aside className="sidebar-list">
@@ -80,7 +86,7 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
         ))}
       </aside>
       <div className="review-main">
-        <BasicInfoPanel fields={basicInfoFields} />
+        <BasicInfoPanel documentId={selectedId} fields={basicInfoFields} onSave={handleSaveBasicInfo} />
         <ComponentTable
           rows={rows}
           onAdd={handleAdd}

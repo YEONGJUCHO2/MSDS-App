@@ -88,6 +88,17 @@ export function migrate(db: Database.Database) {
       FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS document_basic_info (
+      document_id TEXT NOT NULL,
+      info_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      value TEXT NOT NULL,
+      source TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (document_id, info_key),
+      FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS regulatory_seeds (
       seed_id TEXT PRIMARY KEY,
       category TEXT NOT NULL,

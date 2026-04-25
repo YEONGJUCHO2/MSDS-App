@@ -9,8 +9,10 @@ import {
   insertDocument,
   insertManualComponentRow,
   listComponentRows,
+  listDocumentBasicInfo,
   listDocuments,
   removeComponentRow,
+  upsertDocumentBasicInfo,
   updateComponentCandidate,
   updateComponentReviewStatus
 } from "../db/repositories";
@@ -33,43 +35,91 @@ documentsRouter.get("/:documentId/components", (req, res) => {
 
 documentsRouter.get("/:documentId/basic-info", (req, res) => {
   const db = getDb();
-  const document = db.prepare(`
-    SELECT
-      document_id AS documentId,
-      file_name AS fileName,
-      text_content AS textContent
-    FROM documents
-    WHERE document_id = ?
-  `).get(req.params.documentId) as { documentId: string; fileName: string; textContent: string } | undefined;
+  const document = getDocumentForBasicInfo(req.params.documentId);
 
   if (!document) {
     res.status(404).json({ error: "document not found" });
     return;
   }
 
+  res.json(readDocumentBasicInfo(req.params.documentId));
+});
+
+documentsRouter.patch("/:documentId/basic-info", (req, res, next) => {
+  try {
+    const document = getDocumentForBasicInfo(req.params.documentId);
+    if (!document) {
+      res.status(404).json({ error: "document not found" });
+      return;
+    }
+    upsertDocumentBasicInfo(getDb(), req.params.documentId, readBasicInfoFields(req.body));
+    res.json(readDocumentBasicInfo(req.params.documentId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+function getDocumentForBasicInfo(documentId: string) {
+  return getDb().prepare(`
+    SELECT
+      document_id AS documentId,
+      file_name AS fileName,
+      text_content AS textContent
+    FROM documents
+    WHERE document_id = ?
+  `).get(documentId) as { documentId: string; fileName: string; textContent: string } | undefined;
+}
+
+function readDocumentBasicInfo(documentId: string) {
+  const db = getDb();
+  const document = getDocumentForBasicInfo(documentId);
+  if (!document) throw new Error("document not found");
   const product = db.prepare(`
     SELECT GROUP_CONCAT(site_names, ', ') AS siteNames
     FROM products
     WHERE document_id = ?
       AND site_names != ''
-  `).get(req.params.documentId) as { siteNames: string | null } | undefined;
+  `).get(documentId) as { siteNames: string | null } | undefined;
   const queue = db.prepare(`
     SELECT COUNT(*) AS count
     FROM review_queue
     WHERE document_id = ?
       AND review_status = 'needs_review'
-  `).get(req.params.documentId) as { count: number };
-
-  res.json({
-    documentId: document.documentId,
-    fields: extractDocumentBasicInfo({
-      fileName: document.fileName,
-      textContent: document.textContent,
-      siteNames: product?.siteNames ?? "",
-      queueCount: queue.count
-    })
+  `).get(documentId) as { count: number };
+  const extractedFields = extractDocumentBasicInfo({
+    fileName: document.fileName,
+    textContent: document.textContent,
+    siteNames: product?.siteNames ?? "",
+    queueCount: queue.count
   });
-});
+  const savedByKey = new Map(listDocumentBasicInfo(db, documentId).map((field) => [field.key, field]));
+
+  return {
+    documentId: document.documentId,
+    fields: extractedFields.map((field) => savedByKey.get(field.key) ?? field)
+  };
+}
+
+function readBasicInfoFields(body: unknown) {
+  const input = body as { fields?: unknown };
+  if (!Array.isArray(input.fields)) {
+    throw new Error("fields array is required");
+  }
+  return input.fields.map((field) => {
+    const item = field as Record<string, unknown>;
+    const key = String(item.key ?? "").trim();
+    const label = String(item.label ?? "").trim();
+    if (!key || !label) {
+      throw new Error("basic info key and label are required");
+    }
+    return {
+      key,
+      label,
+      value: String(item.value ?? ""),
+      source: String(item.value ?? "").trim() ? "user_saved" as const : "manual_required" as const
+    };
+  });
+}
 
 documentsRouter.post("/:documentId/components", (req, res, next) => {
   try {

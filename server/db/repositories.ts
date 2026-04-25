@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import type { AiReviewStatus, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, ReviewStatus, Section3Row } from "../../shared/types";
+import type { AiReviewStatus, BasicInfoField, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, ReviewStatus, Section3Row } from "../../shared/types";
 import { normalizeUploadedFileName } from "../services/fileName";
 
 type ComponentCandidateInput = Pick<
@@ -201,6 +201,44 @@ export function listDocuments(db: Database.Database): DocumentSummary[] {
     ...row,
     fileName: normalizeUploadedFileName(row.fileName)
   }));
+}
+
+export function listDocumentBasicInfo(db: Database.Database, documentId: string) {
+  return db.prepare(`
+    SELECT
+      info_key AS key,
+      label,
+      value,
+      source
+    FROM document_basic_info
+    WHERE document_id = ?
+  `).all(documentId) as BasicInfoField[];
+}
+
+export function upsertDocumentBasicInfo(db: Database.Database, documentId: string, fields: BasicInfoField[]) {
+  const upsert = db.prepare(`
+    INSERT INTO document_basic_info (document_id, info_key, label, value, source, updated_at)
+    VALUES (@documentId, @key, @label, @value, @source, @updatedAt)
+    ON CONFLICT(document_id, info_key) DO UPDATE SET
+      label = excluded.label,
+      value = excluded.value,
+      source = excluded.source,
+      updated_at = excluded.updated_at
+  `);
+
+  const transaction = db.transaction(() => {
+    for (const field of fields) {
+      upsert.run({
+        documentId,
+        key: field.key,
+        label: field.label,
+        value: field.value.trim(),
+        source: field.value.trim() ? "user_saved" : "manual_required",
+        updatedAt: new Date().toISOString()
+      });
+    }
+  });
+  transaction();
 }
 
 function nextComponentRowIndex(db: Database.Database, documentId: string) {

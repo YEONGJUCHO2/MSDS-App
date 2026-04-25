@@ -66,11 +66,15 @@ export interface BasicInfoField {
   key: string;
   label: string;
   value: string;
-  source: "msds_text" | "file_name" | "linked_site" | "system" | "manual_required";
+  source: "msds_text" | "file_name" | "linked_site" | "system" | "manual_required" | "user_saved";
 }
 
 export interface DocumentBasicInfo {
   documentId: string;
+  fields: BasicInfoField[];
+}
+
+export interface DocumentBasicInfoPayload {
   fields: BasicInfoField[];
 }
 

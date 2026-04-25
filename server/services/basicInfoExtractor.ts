@@ -29,12 +29,12 @@ export function extractDocumentBasicInfo(input: BasicInfoInput) {
   const text = input.textContent.replace(/\r/g, "\n");
   const normalizedFileName = normalizeUploadedFileName(input.fileName);
   const values: Record<string, Omit<BasicInfoField, "key" | "label">> = {
-    supplier: value(extractByLabels(text, ["공급사", "공급자", "회사명", "공급업체"]), "msds_text"),
-    manufacturer: value(extractByLabels(text, ["제조사", "제조자", "제조업체"]), "msds_text"),
+    supplier: value(extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "공급사", "공급자", "공급업체", "회사명"]), "msds_text"),
+    manufacturer: value(extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "제조사", "제조업체", "제조자"]), "msds_text"),
     phone: value(extractPhone(text), "msds_text"),
     email: value(extractEmail(text), "msds_text"),
     productName: value(extractByLabels(text, ["제품명", "제품의 명칭", "화학제품명"]) || stripPdf(normalizedFileName), "file_name"),
-    usage: value(extractByLabels(text, ["용도", "제품의 권고 용도", "권고 용도"]), "msds_text"),
+    usage: value(extractByLabels(text, ["용도", "용 도", "제품의 권고 용도", "권고 용도"]), "msds_text"),
     itemCode: value("", "manual_required"),
     msdsNumber: value(extractMsdsNumber(text), "msds_text"),
     manufacturingType: value(extractManufacturingType(text), "msds_text"),
@@ -64,11 +64,28 @@ function extractByLabels(text: string, labels: string[]) {
   const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
   for (const label of labels) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    for (const line of lines) {
-      const match = line.match(new RegExp(`${escaped}\\s*[:：]?\\s*(.+)$`, "i"));
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = stripLinePrefix(lines[index]);
+      const match = line.match(new RegExp(`^${escaped}\\s*[:：]?\\s*(.+)$`, "i"));
       const cleaned = cleanupValue(match?.[1] ?? "");
       if (cleaned && !looksLikeLabelOnly(cleaned)) return cleaned;
+      if (line.match(new RegExp(`^${escaped}\\s*[:：]?\\s*$`, "i"))) {
+        const nextValue = findNextValue(lines, index + 1);
+        if (nextValue) return nextValue;
+      }
     }
+  }
+  return "";
+}
+
+function findNextValue(lines: string[], startIndex: number) {
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const cleaned = cleanupValue(stripLinePrefix(lines[index]));
+    if (!cleaned) continue;
+    if (looksLikeLabelOnly(cleaned)) continue;
+    if (/^(가|나|다|라|마)\.?$/.test(cleaned)) continue;
+    if (/정보$/.test(cleaned) && cleaned.includes("/")) continue;
+    return cleaned;
   }
   return "";
 }
@@ -106,8 +123,16 @@ function cleanupValue(valueText: string) {
     .trim();
 }
 
+function stripLinePrefix(line: string) {
+  return line
+    .replace(/^[◦•\-.\s]+/, "")
+    .replace(/^\d+(?:-\d+)?[.)]\s*/, "")
+    .trim();
+}
+
 function looksLikeLabelOnly(valueText: string) {
-  return /^(제품명|공급사|제조사|용도|작성일자|개정일자|전화|주소)$/i.test(valueText);
+  return /^(제품명|공급사|제조사|용도|작성일자|개정일자|전화|주소)$/i.test(valueText)
+    || /유통정보$/.test(valueText);
 }
 
 function normalizeDate(valueText: string) {
