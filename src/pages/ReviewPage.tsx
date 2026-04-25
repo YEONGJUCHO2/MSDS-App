@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { DocumentSummary, RegulatoryRecheckResult, Section3Row } from "../../shared/types";
-import { api } from "../api/client";
+import { api, type ComponentCandidatePayload } from "../api/client";
 import { ComponentReviewPanel } from "../components/ComponentReviewPanel";
 import { ComponentTable } from "../components/ComponentTable";
 
@@ -37,6 +37,32 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
     }
   }
 
+  async function handleAdd(payload: ComponentCandidatePayload, recheckAfterSave: boolean) {
+    if (!selectedId) return;
+    const result = await api.addComponent(selectedId, payload);
+    setRows(result.rows);
+    if (recheckAfterSave) {
+      await handleRecheck(result.rowId);
+    }
+  }
+
+  async function handleUpdate(rowId: string, payload: ComponentCandidatePayload, recheckAfterSave: boolean) {
+    if (!selectedId) return;
+    const result = await api.updateComponent(selectedId, rowId, payload);
+    setRows(result.rows);
+    setRecheckMessages((current) => ({ ...current, [rowId]: "수정값을 저장했습니다." }));
+    if (recheckAfterSave) {
+      await handleRecheck(rowId);
+    }
+  }
+
+  async function handleRemove(rowId: string) {
+    if (!selectedId) return;
+    if (!window.confirm("이 성분 행을 사내 입력 포맷에서 제거할까요?")) return;
+    const result = await api.removeComponent(selectedId, rowId);
+    setRows(result.rows);
+  }
+
   return (
     <main className="review-layout">
       <aside className="sidebar-list">
@@ -48,13 +74,22 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
         ))}
       </aside>
       <div className="review-main">
-        <ComponentReviewPanel
+        <ComponentTable
           rows={rows}
+          onAdd={handleAdd}
+          onRemove={handleRemove}
           onRecheck={handleRecheck}
-          recheckMessages={recheckMessages}
-          recheckingRowId={recheckingRowId}
+          onUpdate={handleUpdate}
         />
-        <ComponentTable rows={rows} />
+        <details className="panel evidence-panel">
+          <summary>추출 근거 보기</summary>
+          <ComponentReviewPanel
+            rows={rows}
+            onRecheck={handleRecheck}
+            recheckMessages={recheckMessages}
+            recheckingRowId={recheckingRowId}
+          />
+        </details>
       </div>
     </main>
   );
@@ -65,10 +100,10 @@ function describeRecheckResult(result: RegulatoryRecheckResult) {
     return "공식 API URL/키가 설정되지 않아 외부 조회는 실행되지 않았습니다.";
   }
   if (result.status === "official_api_matched") {
-    return `공식 API 매칭 ${result.apiMatches}건을 반영했습니다.`;
+    return `공식 API 조회 ${result.apiMatches}건을 반영했습니다.`;
   }
   if (result.status === "internal_seed_matched") {
-    return `공식 API 매칭은 없고 내부 기준 ${result.seedMatches}건을 반영했습니다.`;
+    return `공식 API 조회 결과는 없고 내부 기준 ${result.seedMatches}건을 반영했습니다.`;
   }
   return "공식조회 완료: 매칭 없음.";
 }

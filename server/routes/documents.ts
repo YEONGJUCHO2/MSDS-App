@@ -5,7 +5,15 @@ import { Router } from "express";
 import multer from "multer";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/connection";
-import { insertDocument, listComponentRows, listDocuments, updateComponentReviewStatus } from "../db/repositories";
+import {
+  insertDocument,
+  insertManualComponentRow,
+  listComponentRows,
+  listDocuments,
+  removeComponentRow,
+  updateComponentCandidate,
+  updateComponentReviewStatus
+} from "../db/repositories";
 import { normalizeUploadedFileName } from "../services/fileName";
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
@@ -22,6 +30,35 @@ documentsRouter.get("/:documentId/components", (req, res) => {
   res.json({ rows: listComponentRows(getDb(), req.params.documentId) });
 });
 
+documentsRouter.post("/:documentId/components", (req, res, next) => {
+  try {
+    const input = readComponentCandidateBody(req.body);
+    const rowId = insertManualComponentRow(getDb(), req.params.documentId, input);
+    res.json({ rowId, rows: listComponentRows(getDb(), req.params.documentId) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+documentsRouter.patch("/:documentId/components/:rowId", (req, res, next) => {
+  try {
+    const input = readComponentCandidateBody(req.body);
+    updateComponentCandidate(getDb(), req.params.rowId, input);
+    res.json({ rows: listComponentRows(getDb(), req.params.documentId) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+documentsRouter.delete("/:documentId/components/:rowId", (req, res, next) => {
+  try {
+    removeComponentRow(getDb(), req.params.rowId);
+    res.json({ rows: listComponentRows(getDb(), req.params.documentId) });
+  } catch (error) {
+    next(error);
+  }
+});
+
 documentsRouter.post("/:documentId/components/:rowId/recheck", async (req, res, next) => {
   try {
     const result = await recheckComponentRegulatoryData(getDb(), req.params.documentId, req.params.rowId);
@@ -30,6 +67,25 @@ documentsRouter.post("/:documentId/components/:rowId/recheck", async (req, res, 
     next(error);
   }
 });
+
+function readComponentCandidateBody(body: unknown) {
+  const input = body as Record<string, unknown>;
+  const casNoCandidate = String(input.casNoCandidate ?? "").trim();
+  const chemicalNameCandidate = String(input.chemicalNameCandidate ?? "").trim();
+  const contentMinCandidate = String(input.contentMinCandidate ?? "").trim();
+  const contentMaxCandidate = String(input.contentMaxCandidate ?? "").trim();
+  const contentSingleCandidate = String(input.contentSingleCandidate ?? "").trim();
+  if (!casNoCandidate && !chemicalNameCandidate) {
+    throw new Error("CAS No. 또는 화학물질명 중 하나는 필요합니다.");
+  }
+  return {
+    casNoCandidate,
+    chemicalNameCandidate,
+    contentMinCandidate,
+    contentMaxCandidate,
+    contentSingleCandidate
+  };
+}
 
 documentsRouter.post("/:documentId/components/:rowId/review", (req, res, next) => {
   try {

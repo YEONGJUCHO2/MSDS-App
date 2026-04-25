@@ -99,4 +99,71 @@ describe("ComponentTable", () => {
     expect(screen.getByText("공식 정보 조회만 된 항목은 사내 입력 컬럼에 표시하지 않습니다.")).toBeInTheDocument();
     expect(screen.queryByRole("cell", { name: "Y" })).not.toBeInTheDocument();
   });
+
+  it("allows users to add, edit, recheck, and remove component rows from the export table", () => {
+    const onAdd = vi.fn();
+    const onUpdate = vi.fn();
+    const onRemove = vi.fn();
+    const onRecheck = vi.fn();
+
+    render(
+      <ComponentTable
+        onAdd={onAdd}
+        onRemove={onRemove}
+        onRecheck={onRecheck}
+        onUpdate={onUpdate}
+        rows={[
+          {
+            rowId: "row-1",
+            rowIndex: 0,
+            rawRowText: "철 7439-89-6 65~75",
+            casNoCandidate: "7439-89-6",
+            chemicalNameCandidate: "철 Iron",
+            contentMinCandidate: "65",
+            contentMaxCandidate: "75",
+            contentSingleCandidate: "",
+            contentText: "65~75",
+            confidence: 0.92,
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            regulatoryMatches: []
+          }
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "수정" }));
+    fireEvent.change(screen.getByLabelText("화학물질명"), { target: { value: "Iron powder" } });
+    fireEvent.click(screen.getByLabelText("저장 후 API 재조회"));
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(onUpdate).toHaveBeenCalledWith("row-1", {
+      casNoCandidate: "7439-89-6",
+      chemicalNameCandidate: "Iron powder",
+      contentMinCandidate: "65",
+      contentMaxCandidate: "75",
+      contentSingleCandidate: ""
+    }, true);
+
+    fireEvent.click(screen.getByRole("button", { name: "재조회" }));
+    expect(onRecheck).toHaveBeenCalledWith("row-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "추가" }));
+    fireEvent.change(screen.getByLabelText("CAS No."), { target: { value: "96-29-7" } });
+    fireEvent.change(screen.getByLabelText("화학물질명"), { target: { value: "Methylethylketoxime" } });
+    fireEvent.change(screen.getByLabelText("MIN"), { target: { value: "0.1" } });
+    fireEvent.change(screen.getByLabelText("MAX"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "추가 저장" }));
+
+    expect(onAdd).toHaveBeenCalledWith({
+      casNoCandidate: "96-29-7",
+      chemicalNameCandidate: "Methylethylketoxime",
+      contentMinCandidate: "0.1",
+      contentMaxCandidate: "1",
+      contentSingleCandidate: ""
+    }, false);
+
+    fireEvent.click(screen.getByRole("button", { name: "제거" }));
+    expect(onRemove).toHaveBeenCalledWith("row-1");
+  });
 });

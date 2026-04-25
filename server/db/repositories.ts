@@ -3,6 +3,11 @@ import { nanoid } from "nanoid";
 import type { AiReviewStatus, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, ReviewStatus, Section3Row } from "../../shared/types";
 import { normalizeUploadedFileName } from "../services/fileName";
 
+type ComponentCandidateInput = Pick<
+  Section3Row,
+  "casNoCandidate" | "chemicalNameCandidate" | "contentMinCandidate" | "contentMaxCandidate" | "contentSingleCandidate"
+>;
+
 export function insertDocument(
   db: Database.Database,
   input: { documentId?: string; fileName: string; fileHash: string; storagePath: string; status: string; textContent?: string; pageCount?: number }
@@ -78,6 +83,75 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
   transaction();
 }
 
+export function insertManualComponentRow(db: Database.Database, documentId: string, input: ComponentCandidateInput) {
+  const rowId = nanoid();
+  const rowIndex = nextComponentRowIndex(db, documentId);
+  const contentText = formatContentText(input);
+  const rawRowText = [input.chemicalNameCandidate, input.casNoCandidate, contentText].filter(Boolean).join(" ");
+  insertComponentRows(db, documentId, [{
+    rowId,
+    rowIndex,
+    rawRowText,
+    ...input,
+    contentText,
+    confidence: 1,
+    evidenceLocation: "수동 추가",
+    reviewStatus: "edited",
+    aiReviewStatus: "ai_needs_attention",
+    aiReviewNote: "사용자가 직접 추가한 성분입니다.",
+    regulatoryMatchStatus: "not_checked"
+  }]);
+  return rowId;
+}
+
+export function updateComponentCandidate(db: Database.Database, rowId: string, input: ComponentCandidateInput) {
+  const contentText = formatContentText(input);
+  const rawRowText = [input.chemicalNameCandidate, input.casNoCandidate, contentText].filter(Boolean).join(" ");
+  const transaction = db.transaction(() => {
+    db.prepare(`
+      UPDATE components
+      SET
+        raw_row_text = @rawRowText,
+        cas_no_candidate = @casNoCandidate,
+        chemical_name_candidate = @chemicalNameCandidate,
+        content_min_candidate = @contentMinCandidate,
+        content_max_candidate = @contentMaxCandidate,
+        content_single_candidate = @contentSingleCandidate,
+        content_text = @contentText,
+        review_status = 'edited',
+        ai_review_status = 'ai_needs_attention',
+        ai_review_note = '사용자가 수정한 성분입니다.',
+        regulatory_match_status = 'not_checked'
+      WHERE row_id = @rowId
+    `).run({ rowId, rawRowText, contentText, ...input });
+    db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+    db.prepare(`
+      UPDATE review_queue
+      SET
+        label = @label,
+        candidate_value = @contentText,
+        evidence = @evidence,
+        review_status = 'edited'
+      WHERE entity_id = @rowId
+    `).run({
+      rowId,
+      label: `${input.chemicalNameCandidate || "성분"} / ${input.casNoCandidate || "CAS 확인 필요"}`,
+      contentText,
+      evidence: `사용자 수정: ${rawRowText}`
+    });
+  });
+  transaction();
+}
+
+export function removeComponentRow(db: Database.Database, rowId: string) {
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+    db.prepare("DELETE FROM review_queue WHERE entity_id = ?").run(rowId);
+    db.prepare("DELETE FROM components WHERE row_id = ?").run(rowId);
+  });
+  transaction();
+}
+
 export function listDocuments(db: Database.Database): DocumentSummary[] {
   const rows = db.prepare(`
     SELECT
@@ -98,6 +172,19 @@ export function listDocuments(db: Database.Database): DocumentSummary[] {
     ...row,
     fileName: normalizeUploadedFileName(row.fileName)
   }));
+}
+
+function nextComponentRowIndex(db: Database.Database, documentId: string) {
+  const row = db.prepare("SELECT COALESCE(MAX(row_index), -1) + 1 AS nextIndex FROM components WHERE document_id = ?").get(documentId) as { nextIndex: number };
+  return row.nextIndex;
+}
+
+function formatContentText(input: ComponentCandidateInput) {
+  if (input.contentSingleCandidate.trim()) return input.contentSingleCandidate.trim();
+  if (input.contentMinCandidate.trim() || input.contentMaxCandidate.trim()) {
+    return `${input.contentMinCandidate.trim()}~${input.contentMaxCandidate.trim()}`.replace(/^~/, "").replace(/~$/, "");
+  }
+  return "";
 }
 
 export function listReviewQueue(db: Database.Database) {
