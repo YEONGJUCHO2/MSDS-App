@@ -1,3 +1,4 @@
+import "../config/loadEnv";
 import { getDb } from "../db/connection";
 import { reviewComponentRows } from "../services/aiReviewer";
 import { extractSection3Rows } from "../services/tableExtractor";

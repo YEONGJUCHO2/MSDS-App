@@ -1,3 +1,4 @@
+import "../config/loadEnv";
 import { getDb } from "../db/connection";
 import { listDocuments, listComponentRows, updateComponentAiReview } from "../db/repositories";
 import { reviewComponentRowsWithOptionalCodex } from "../services/aiReviewer";

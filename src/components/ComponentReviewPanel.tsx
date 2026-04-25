@@ -32,6 +32,7 @@ export function ComponentReviewPanel({ rows, onRecheck, recheckMessages = {}, re
           <tbody>
             {rows.map((row) => {
               const regulatoryEvidence = (row.regulatoryMatches ?? []).map((match) => `${match.sourceName}: ${match.evidenceText || match.category}`).join(" / ");
+              const regulatorySources = Array.from(new Set((row.regulatoryMatches ?? []).map((match) => match.sourceName))).join(", ");
               const rowKey = row.rowId ?? `${row.casNoCandidate}-${row.evidenceLocation}`;
 
               return (
@@ -39,10 +40,10 @@ export function ComponentReviewPanel({ rows, onRecheck, recheckMessages = {}, re
                   <td>{row.chemicalNameCandidate || "성분명 확인필요"}</td>
                   <td>{row.casNoCandidate || "CAS 확인필요"}</td>
                   <td>{row.contentText || "함유량 확인필요"}</td>
-                  <td>
+                  <td title={regulatoryEvidence || row.aiReviewNote}>
                     {row.regulatoryMatchStatus ? regulatoryMatchStatusLabels[row.regulatoryMatchStatus] : "DB 미조회"}
                     {row.aiReviewStatus ? <span className="table-subtext">{aiReviewStatusLabels[row.aiReviewStatus]}</span> : null}
-                    {regulatoryEvidence ? <span className="table-subtext">{regulatoryEvidence}</span> : null}
+                    {regulatorySources ? <span className="table-subtext">{regulatorySources}</span> : null}
                     {row.evidenceLocation ? <span className="table-subtext">{row.evidenceLocation}</span> : null}
                     {row.rowId && recheckMessages[row.rowId] ? <span className="lookup-feedback compact">{recheckMessages[row.rowId]}</span> : null}
                     {row.rowId && onRecheck ? (
