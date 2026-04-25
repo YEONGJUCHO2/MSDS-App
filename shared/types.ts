@@ -69,6 +69,15 @@ export interface ApiProviderStatus {
   cacheCount: number;
 }
 
+export interface ProductSummary {
+  productId: string;
+  productName: string;
+  supplier: string;
+  manufacturer: string;
+  siteNames: string;
+  registrationStatus: string;
+}
+
 export interface WatchlistItem {
   watchId: string;
   casNo: string;
@@ -76,6 +85,18 @@ export interface WatchlistItem {
   lastSourceName: string;
   lastCheckedAt: string;
   status: RegulatoryMatchStatus | string;
+}
+
+export interface WatchlistRecheckResult {
+  watchId: string;
+  casNo: string;
+  chemicalName: string;
+  seedMatches: number;
+  apiMatches: number;
+  status: RegulatoryMatchStatus;
+  sourceName: string;
+  checkedAt: string;
+  changed: boolean;
 }
 
 export interface ReviewQueueItem {

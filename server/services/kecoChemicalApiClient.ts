@@ -4,9 +4,9 @@ import type { OfficialChemicalMatch } from "./koshaApiClient";
 
 type Fetcher = (url: string) => Promise<{ ok: boolean; text(): Promise<string>; status?: number }>;
 
-export async function lookupKecoChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch) {
+export async function lookupKecoChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch, options: { forceRefresh?: boolean } = {}) {
   const cached = getChemicalApiCache(db, "keco", casNo);
-  if (cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now() && isSuccessfulKecoResponse(cached.responseText)) {
+  if (!options.forceRefresh && cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now() && isSuccessfulKecoResponse(cached.responseText)) {
     return {
       cacheStatus: "hit" as const,
       matches: parseKecoResponse(casNo, cached.responseText, cached.requestUrl)

@@ -11,9 +11,9 @@ export interface OfficialChemicalMatch {
 
 type Fetcher = (url: string) => Promise<{ ok: boolean; text(): Promise<string>; status?: number }>;
 
-export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch) {
+export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch, options: { forceRefresh?: boolean } = {}) {
   const cached = getChemicalApiCache(db, "kosha", casNo);
-  if (cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now()) {
+  if (!options.forceRefresh && cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now()) {
     return {
       cacheStatus: "hit" as const,
       matches: parseKoshaResponse(casNo, cached.responseText, cached.requestUrl)

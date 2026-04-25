@@ -416,7 +416,7 @@ export function deleteRegulatoryMatchesForRow(db: Database.Database, rowId: stri
   db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
 }
 
-export function upsertWatchlist(db: Database.Database, input: { casNo: string; chemicalName: string; sourceName: string; status: string }) {
+export function upsertWatchlist(db: Database.Database, input: { casNo: string; chemicalName: string; sourceName: string; status: string; checkedAt?: string }) {
   db.prepare(`
     INSERT INTO watchlist (watch_id, cas_no, chemical_name, last_source_name, last_checked_at, status)
     VALUES (@watchId, @casNo, @chemicalName, @sourceName, @checkedAt, @status)
@@ -427,8 +427,8 @@ export function upsertWatchlist(db: Database.Database, input: { casNo: string; c
       status = excluded.status
   `).run({
     watchId: nanoid(),
-    checkedAt: new Date().toISOString(),
-    ...input
+    ...input,
+    checkedAt: input.checkedAt ?? new Date().toISOString()
   });
 }
 

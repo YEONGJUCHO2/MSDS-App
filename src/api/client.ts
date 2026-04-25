@@ -1,4 +1,14 @@
-import type { ApiProviderStatus, DocumentSummary, RegulatoryRecheckResult, ReviewQueueItem, ReviewStatus, Section3Row, WatchlistItem } from "../../shared/types";
+import type {
+  ApiProviderStatus,
+  DocumentSummary,
+  ProductSummary,
+  RegulatoryRecheckResult,
+  ReviewQueueItem,
+  ReviewStatus,
+  Section3Row,
+  WatchlistItem,
+  WatchlistRecheckResult
+} from "../../shared/types";
 
 export type ComponentCandidatePayload = Pick<
   Section3Row,
@@ -41,6 +51,13 @@ export const api = {
     }),
   officialLookupStatus: () => request<{ providers: ApiProviderStatus[] }>("/api/official-lookups/status"),
   watchlist: () => request<{ items: WatchlistItem[] }>("/api/watchlist"),
+  recheckWatchlist: (watchIds?: string[]) =>
+    request<{ results: WatchlistRecheckResult[]; items: WatchlistItem[] }>("/api/watchlist/recheck", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ watchIds })
+    }),
+  products: () => request<{ products: ProductSummary[] }>("/api/products"),
   upload: (file: File) => {
     const form = new FormData();
     form.append("file", file);

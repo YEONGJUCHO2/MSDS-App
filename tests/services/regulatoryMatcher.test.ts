@@ -1,9 +1,9 @@
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { migrate } from "../../server/db/schema";
-import { insertComponentRows, insertDocument, updateComponentReviewStatus } from "../../server/db/repositories";
+import { insertComponentRows, insertDocument, updateComponentReviewStatus, upsertWatchlist } from "../../server/db/repositories";
 import { importRegulatorySeedCsv } from "../../server/importers/regulatorySeedImport";
-import { matchAndStoreRegulatoryData, recheckComponentRegulatoryData } from "../../server/services/regulatoryMatcher";
+import { matchAndStoreRegulatoryData, recheckComponentRegulatoryData, recheckWatchlistRegulatoryData } from "../../server/services/regulatoryMatcher";
 
 describe("regulatory matcher", () => {
   afterEach(() => {
@@ -77,6 +77,42 @@ describe("regulatory matcher", () => {
     await recheckComponentRegulatoryData(db, "doc-1", "row-1");
 
     expect(db.prepare("SELECT COUNT(*) AS count FROM regulatory_matches").get()).toEqual({ count: 1 });
+  });
+
+  it("rechecks selected watchlist rows and records the latest lookup result", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    upsertWatchlist(db, {
+      casNo: "67-64-1",
+      chemicalName: "Acetone",
+      sourceName: "조회 대기",
+      status: "no_match",
+      checkedAt: "2026-04-01T00:00:00.000Z"
+    });
+    importRegulatorySeedCsv(db, [
+      "category,cas_no,chemical_name_ko,chemical_name_en,synonyms,threshold_text,period_value,period_unit,source_name,source_url,source_revision_date,note",
+      "specialHealthExam,67-64-1,아세톤,Acetone,,특수검진 후보,12,개월,내부 기준표,internal://seed,2026-04-25,검수 필요"
+    ].join("\n"));
+    const watchId = (db.prepare("SELECT watch_id AS watchId FROM watchlist").get() as { watchId: string }).watchId;
+
+    const result = await recheckWatchlistRegulatoryData(db, [watchId]);
+
+    expect(result).toMatchObject([
+      {
+        watchId,
+        casNo: "67-64-1",
+        seedMatches: 1,
+        apiMatches: 0,
+        status: "internal_seed_matched",
+        sourceName: "내부 기준표",
+        changed: true
+      }
+    ]);
+    expect(db.prepare("SELECT status, last_source_name AS lastSourceName, last_checked_at AS lastCheckedAt FROM watchlist").get()).toMatchObject({
+      status: "internal_seed_matched",
+      lastSourceName: "내부 기준표"
+    });
+    expect((db.prepare("SELECT last_checked_at AS lastCheckedAt FROM watchlist").get() as { lastCheckedAt: string }).lastCheckedAt).not.toBe("2026-04-01T00:00:00.000Z");
   });
 
   it("stores KOSHA official matches when KECO has no match", async () => {
