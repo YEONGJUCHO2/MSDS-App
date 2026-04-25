@@ -127,6 +127,59 @@ describe("regulatory matcher", () => {
     });
   });
 
+  it("continues with KOSHA lookup when KECO is temporarily rate limited", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KECO_CHEM_API_URL = "https://example.test/keco";
+    process.env.KECO_API_SERVICE_KEY = "service-key";
+    process.env.KOSHA_MSDS_API_URL = "https://msds.kosha.or.kr/openapi/service/msdschem/chemlist";
+    process.env.KOSHA_API_SERVICE_KEY = "service-key";
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("example.test/keco")) {
+        return { ok: false, status: 429, text: async () => "rate limited" };
+      }
+      return {
+        ok: true,
+        text: async () => [
+          '<?xml version="1.0" encoding="UTF-8"?>',
+          "<response>",
+          "<header><resultCode>00</resultCode><resultMsg>NORMAL SERVICE.</resultMsg></header>",
+          "<body><items><item>",
+          "<casNo>12604-53-4</casNo>",
+          "<chemNameKor>페로망가니즈(페로망간)</chemNameKor>",
+          "<keNo>KE-13738</keNo>",
+          "<lastDate>2024-11-01T00:00:00+09:00</lastDate>",
+          "</item></items></body>",
+          "</response>"
+        ].join("")
+      };
+    }));
+    insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    insertComponentRows(db, "doc-1", [{
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Ferro Manganese 12604-53-4 1~5%",
+      casNoCandidate: "12604-53-4",
+      chemicalNameCandidate: "Ferro Manganese",
+      contentMinCandidate: "1",
+      contentMaxCandidate: "5",
+      contentSingleCandidate: "",
+      contentText: "1~5",
+      confidence: 0.82,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review"
+    }]);
+
+    const result = await matchAndStoreRegulatoryData(db, "doc-1", [
+      { rowId: "row-1", casNoCandidate: "12604-53-4", chemicalNameCandidate: "Ferro Manganese" }
+    ]);
+
+    expect(result).toEqual([{ rowId: "row-1", seedMatches: 0, apiMatches: 1, status: "official_api_matched" }]);
+    expect(db.prepare("SELECT source_name AS sourceName FROM regulatory_matches").get()).toEqual({
+      sourceName: "KOSHA MSDS Open API"
+    });
+  });
+
   it("updates component and queue review status together", () => {
     const db = new Database(":memory:");
     migrate(db);

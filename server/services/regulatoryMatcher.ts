@@ -31,9 +31,7 @@ export async function matchAndStoreRegulatoryData(
       });
     }
 
-    const kecoLookup = await lookupKecoChemicalInfo(db, row.casNoCandidate);
-    const koshaLookup = kecoLookup.matches.length === 0 ? await lookupKoshaChemicalInfo(db, row.casNoCandidate) : { matches: [] };
-    const officialMatches = [...kecoLookup.matches, ...koshaLookup.matches];
+    const officialMatches = await lookupOfficialMatches(db, row.casNoCandidate);
     for (const match of officialMatches) {
       insertRegulatoryMatch(db, {
         rowId: row.rowId,
@@ -70,6 +68,23 @@ export async function recheckComponentRegulatoryData(db: Database.Database, docu
 
   const [result] = await matchAndStoreRegulatoryData(db, documentId, [row]);
   return result;
+}
+
+async function lookupOfficialMatches(db: Database.Database, casNo: string) {
+  let kecoMatches: Awaited<ReturnType<typeof lookupKecoChemicalInfo>>["matches"] = [];
+  try {
+    kecoMatches = (await lookupKecoChemicalInfo(db, casNo)).matches;
+  } catch {
+    kecoMatches = [];
+  }
+
+  if (kecoMatches.length > 0) return kecoMatches;
+
+  try {
+    return (await lookupKoshaChemicalInfo(db, casNo)).matches;
+  } catch {
+    return [];
+  }
 }
 
 function chooseStatus(seedMatches: number, officialMatches: number): RegulatoryMatchStatus {
