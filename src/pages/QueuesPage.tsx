@@ -2,14 +2,17 @@ import type { ReviewQueueItem } from "../../shared/types";
 import { StatusBadge } from "../components/StatusBadge";
 
 export function QueuesPage({ items }: { items: ReviewQueueItem[] }) {
+  const pendingItems = items.filter((item) => item.reviewStatus === "needs_review");
+
   return (
     <main className="panel">
       <div className="panel-title">
         <h2>검수/관리 큐</h2>
-        <span>{items.length}건</span>
+        <span>{pendingItems.length}건 대기 · 전체 {items.length}건</span>
       </div>
       <div className="queue-list">
-        {items.map((item) => (
+        {pendingItems.length === 0 ? <div className="empty">처리 대기 중인 검수 항목이 없습니다.</div> : null}
+        {pendingItems.map((item) => (
           <article className="queue-item" key={item.queueId}>
             <div>
               <strong>{item.label}</strong>
