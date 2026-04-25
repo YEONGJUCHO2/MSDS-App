@@ -10,7 +10,7 @@ describe("processing pipeline", () => {
     vi.unstubAllGlobals();
   });
 
-  it("creates review queue items from extracted MSDS component rows", async () => {
+  it("does not queue complete component rows that can proceed to registration output", async () => {
     const db = new Database(":memory:");
     migrate(db);
     const result = await processExtractedText(db, {
@@ -22,7 +22,23 @@ describe("processing pipeline", () => {
 
     expect(result.status).toBe("needs_review");
     expect(result.componentRows).toHaveLength(1);
-    expect(db.prepare("SELECT COUNT(*) AS count FROM review_queue").get()).toEqual({ count: 1 });
+    expect(db.prepare("SELECT COUNT(*) AS count FROM review_queue").get()).toEqual({ count: 0 });
+  });
+
+  it("queues component rows that need human attention before monitoring", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    const result = await processExtractedText(db, {
+      documentId: "doc-1",
+      fileName: "sample.pdf",
+      text: "3. 구성성분의 명칭 및 함유량\nTrade secret 12345-67-8\n4. 응급조치 요령",
+      pageCount: 1
+    });
+
+    expect(result.status).toBe("needs_review");
+    expect(db.prepare("SELECT label, review_status AS reviewStatus FROM review_queue").all()).toEqual([
+      { label: "Trade secret / 12345-67-8", reviewStatus: "needs_review" }
+    ]);
   });
 
   it("automatically stores official API classifications during upload processing", async () => {

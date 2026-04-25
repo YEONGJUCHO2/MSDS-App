@@ -67,16 +67,18 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
         aiReviewNote: row.aiReviewNote ?? "",
         regulatoryMatchStatus: row.regulatoryMatchStatus ?? "not_checked"
       });
-      insertQueue.run({
-        queueId: nanoid(),
-        documentId,
-        entityId: rowId,
-        label: `${row.chemicalNameCandidate || "성분"} / ${row.casNoCandidate || "CAS 확인 필요"}`,
-        candidateValue: row.contentText,
-        evidence: `${row.evidenceLocation}: ${row.rawRowText}`,
-        reviewStatus: row.reviewStatus,
-        createdAt: new Date().toISOString()
-      });
+      if (needsHumanAttention(row)) {
+        insertQueue.run({
+          queueId: nanoid(),
+          documentId,
+          entityId: rowId,
+          label: `${row.chemicalNameCandidate || "성분"} / ${row.casNoCandidate || "CAS 확인 필요"}`,
+          candidateValue: row.contentText,
+          evidence: `${row.evidenceLocation}: ${row.rawRowText}`,
+          reviewStatus: row.reviewStatus,
+          createdAt: new Date().toISOString()
+        });
+      }
     }
   });
 
@@ -177,6 +179,20 @@ export function listDocuments(db: Database.Database): DocumentSummary[] {
     FROM documents d
     LEFT JOIN components c ON c.document_id = d.document_id
     LEFT JOIN review_queue q ON q.document_id = d.document_id AND q.review_status = 'needs_review'
+      AND (
+        q.field_type != 'component'
+        OR EXISTS (
+          SELECT 1 FROM components cq
+          WHERE cq.row_id = q.entity_id
+            AND (
+              cq.cas_no_candidate = ''
+              OR cq.chemical_name_candidate = ''
+              OR cq.content_text = ''
+              OR cq.ai_review_status = 'ai_needs_attention'
+              OR cq.regulatory_match_status IN ('api_key_required', 'no_match')
+            )
+        )
+      )
     GROUP BY d.document_id
     ORDER BY d.uploaded_at DESC
   `).all() as DocumentSummary[];
@@ -208,6 +224,15 @@ function componentCandidateEquals(a: ComponentCandidateInput, b: ComponentCandid
     && a.contentSingleCandidate === b.contentSingleCandidate;
 }
 
+function needsHumanAttention(row: Section3Row) {
+  return !row.casNoCandidate
+    || !row.chemicalNameCandidate
+    || !row.contentText
+    || row.aiReviewStatus === "ai_needs_attention"
+    || row.regulatoryMatchStatus === "api_key_required"
+    || row.regulatoryMatchStatus === "no_match";
+}
+
 export function listReviewQueue(db: Database.Database) {
   return db.prepare(`
     SELECT
@@ -221,6 +246,19 @@ export function listReviewQueue(db: Database.Database) {
       review_status AS reviewStatus,
       created_at AS createdAt
     FROM review_queue
+    WHERE review_status != 'needs_review'
+       OR field_type != 'component'
+       OR EXISTS (
+         SELECT 1 FROM components cq
+         WHERE cq.row_id = review_queue.entity_id
+           AND (
+             cq.cas_no_candidate = ''
+             OR cq.chemical_name_candidate = ''
+             OR cq.content_text = ''
+             OR cq.ai_review_status = 'ai_needs_attention'
+             OR cq.regulatory_match_status IN ('api_key_required', 'no_match')
+           )
+       )
     ORDER BY created_at DESC
   `).all();
 }
