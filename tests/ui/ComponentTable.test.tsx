@@ -49,7 +49,8 @@ describe("ComponentTable", () => {
 
     expect(screen.getByRole("columnheader", { name: "작업환경측정 대상물질" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "특수건강검진대상물질" })).toBeInTheDocument();
-    expect(screen.getByRole("cell", { name: "6개월" })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "6개월" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("cell", { name: "Y" })).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "전체 복사" }));
 

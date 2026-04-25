@@ -51,16 +51,8 @@ function regulatoryValue(matches: RegulatoryMatch[] | undefined, column: Regulat
   const match = (matches ?? []).find((candidate) => column.categories.includes(candidate.category as never));
   if (!match) return "";
   if (match.status.startsWith("비해당")) return "";
-  const period = extractPeriod(match.evidenceText);
-  if ((column.key === "workEnvironmentMeasurement" || column.key === "specialHealthExam") && period) {
-    return period;
-  }
   if (match.status.includes("확인")) return match.status;
   return "Y";
-}
-
-function extractPeriod(text: string) {
-  return text.match(/\d+\s*(개월|년|일|주)/)?.[0].replace(/\s+/g, "") ?? "";
 }
 
 function escapeTsvCell(value: string) {
