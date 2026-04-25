@@ -10,12 +10,12 @@ interface DashboardPageProps {
 export function DashboardPage({ documents, queueItems, onNavigate }: DashboardPageProps) {
   const pendingAttentionCount = queueItems.filter((item) => item.reviewStatus === "needs_review").length;
   const componentCount = documents.reduce((sum, doc) => sum + doc.componentCount, 0);
-  const monitoredDocumentCount = documents.filter((doc) => doc.componentCount > 0 && doc.queueCount === 0).length;
+  const revisionNeededCount = 0;
   const cards = [
-    { label: "문서", value: documents.length, icon: FileText, page: "review" },
-    { label: "확인 필요", value: pendingAttentionCount, icon: AlertTriangle, page: "queues" },
-    { label: "성분 후보", value: componentCount, icon: Database, page: "watchlist" },
-    { label: "감시 대상", value: monitoredDocumentCount, icon: BellRing, page: "watchlist" }
+    { label: "등록된 MSDS", value: documents.length, icon: FileText, page: "review" },
+    { label: "검수 필요", value: pendingAttentionCount, icon: AlertTriangle, page: "queues" },
+    { label: "등록된 화학물질", value: componentCount, icon: Database, page: "watchlist" },
+    { label: "개정 필요", value: revisionNeededCount, icon: BellRing, page: "revisions" }
   ];
 
   return (
@@ -37,7 +37,7 @@ export function DashboardPage({ documents, queueItems, onNavigate }: DashboardPa
             <div className="document-row" key={document.documentId}>
               <div>
                 <strong>{document.fileName}</strong>
-                <span>{document.uploadedAt.slice(0, 10)} · 성분 {document.componentCount} · 확인 {document.queueCount}</span>
+                <span>{document.uploadedAt.slice(0, 10)} · 화학물질 {document.componentCount} · 검수 {document.queueCount}</span>
               </div>
               <code>{displayDocumentState(document)}</code>
             </div>
@@ -49,7 +49,7 @@ export function DashboardPage({ documents, queueItems, onNavigate }: DashboardPa
 }
 
 function displayDocumentState(document: DocumentSummary) {
-  if (document.queueCount > 0) return "확인 필요";
-  if (document.componentCount > 0) return "감시 대상";
+  if (document.queueCount > 0) return "검수 필요";
+  if (document.componentCount > 0) return "등록됨";
   return "분석 필요";
 }

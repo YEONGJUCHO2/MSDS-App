@@ -14,11 +14,11 @@ import { WatchlistPage } from "./pages/WatchlistPage";
 const navItems = [
   { id: "dashboard", label: "대시보드", icon: Gauge },
   { id: "upload", label: "업로드", icon: Upload },
-  { id: "review", label: "확인", icon: ClipboardList },
-  { id: "queues", label: "큐", icon: ListChecks },
-  { id: "products", label: "관리", icon: Database },
-  { id: "revisions", label: "개정", icon: FileDiff },
-  { id: "watchlist", label: "감시", icon: Watch }
+  { id: "review", label: "검수", icon: ClipboardList },
+  { id: "queues", label: "검수 큐", icon: ListChecks },
+  { id: "products", label: "제품/현장", icon: Database },
+  { id: "revisions", label: "개정 비교", icon: FileDiff },
+  { id: "watchlist", label: "감시/재조회", icon: Watch }
 ];
 
 export default function App() {

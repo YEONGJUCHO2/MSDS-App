@@ -7,11 +7,11 @@ export function QueuesPage({ items }: { items: ReviewQueueItem[] }) {
   return (
     <main className="panel">
       <div className="panel-title">
-        <h2>확인/관리 큐</h2>
+        <h2>검수 필요 큐</h2>
         <span>{pendingItems.length}건 대기 · 전체 {items.length}건</span>
       </div>
       <div className="queue-list">
-        {pendingItems.length === 0 ? <div className="empty">사람 확인이 필요한 항목이 없습니다.</div> : null}
+        {pendingItems.length === 0 ? <div className="empty">검수 필요한 항목이 없습니다.</div> : null}
         {pendingItems.map((item) => (
           <article className="queue-item" key={item.queueId}>
             <div>

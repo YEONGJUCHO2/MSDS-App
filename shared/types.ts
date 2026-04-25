@@ -62,6 +62,18 @@ export interface RegulatoryRecheckResult {
   status: RegulatoryMatchStatus;
 }
 
+export interface BasicInfoField {
+  key: string;
+  label: string;
+  value: string;
+  source: "msds_text" | "file_name" | "linked_site" | "system" | "manual_required";
+}
+
+export interface DocumentBasicInfo {
+  documentId: string;
+  fields: BasicInfoField[];
+}
+
 export interface ApiProviderStatus {
   provider: "keco" | "kosha";
   label: string;

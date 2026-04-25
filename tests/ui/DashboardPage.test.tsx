@@ -49,17 +49,20 @@ describe("DashboardPage", () => {
 
     render(<DashboardPage documents={documents} queueItems={queueItems} onNavigate={onNavigate} />);
 
-    expect(screen.getAllByText("확인 필요").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("검수 필요").length).toBeGreaterThan(0);
     expect(screen.queryByText("검수필요")).not.toBeInTheDocument();
-    expect(screen.getAllByText("감시 대상").length).toBeGreaterThan(0);
-    expect(screen.getByText("2026-04-25 · 성분 3 · 확인 1")).toBeInTheDocument();
-    expect(screen.getByText("2026-04-25 · 성분 2 · 확인 0")).toBeInTheDocument();
-    expect(screen.getAllByText("확인 필요").length).toBeGreaterThan(0);
+    expect(screen.getByText("등록된 MSDS")).toBeInTheDocument();
+    expect(screen.getByText("등록된 화학물질")).toBeInTheDocument();
+    expect(screen.getByText("개정 필요")).toBeInTheDocument();
+    expect(screen.getByText("2026-04-25 · 화학물질 3 · 검수 1")).toBeInTheDocument();
+    expect(screen.getByText("2026-04-25 · 화학물질 2 · 검수 0")).toBeInTheDocument();
+    expect(screen.getAllByText("검수 필요").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("등록됨").length).toBeGreaterThan(0);
     expect(screen.queryByText("needs_review")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "확인 필요1" }));
+    fireEvent.click(screen.getByRole("button", { name: "검수 필요1" }));
     expect(onNavigate).toHaveBeenCalledWith("queues");
-    fireEvent.click(screen.getByRole("button", { name: "감시 대상1" }));
-    expect(onNavigate).toHaveBeenCalledWith("watchlist");
+    fireEvent.click(screen.getByRole("button", { name: "개정 필요0" }));
+    expect(onNavigate).toHaveBeenCalledWith("revisions");
   });
 });

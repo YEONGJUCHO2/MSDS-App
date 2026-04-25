@@ -15,6 +15,7 @@ import {
   updateComponentReviewStatus
 } from "../db/repositories";
 import { normalizeUploadedFileName } from "../services/fileName";
+import { extractDocumentBasicInfo } from "../services/basicInfoExtractor";
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
 import { recheckComponentRegulatoryData } from "../services/regulatoryMatcher";
@@ -28,6 +29,46 @@ documentsRouter.get("/", (_req, res) => {
 
 documentsRouter.get("/:documentId/components", (req, res) => {
   res.json({ rows: listComponentRows(getDb(), req.params.documentId) });
+});
+
+documentsRouter.get("/:documentId/basic-info", (req, res) => {
+  const db = getDb();
+  const document = db.prepare(`
+    SELECT
+      document_id AS documentId,
+      file_name AS fileName,
+      text_content AS textContent
+    FROM documents
+    WHERE document_id = ?
+  `).get(req.params.documentId) as { documentId: string; fileName: string; textContent: string } | undefined;
+
+  if (!document) {
+    res.status(404).json({ error: "document not found" });
+    return;
+  }
+
+  const product = db.prepare(`
+    SELECT GROUP_CONCAT(site_names, ', ') AS siteNames
+    FROM products
+    WHERE document_id = ?
+      AND site_names != ''
+  `).get(req.params.documentId) as { siteNames: string | null } | undefined;
+  const queue = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM review_queue
+    WHERE document_id = ?
+      AND review_status = 'needs_review'
+  `).get(req.params.documentId) as { count: number };
+
+  res.json({
+    documentId: document.documentId,
+    fields: extractDocumentBasicInfo({
+      fileName: document.fileName,
+      textContent: document.textContent,
+      siteNames: product?.siteNames ?? "",
+      queueCount: queue.count
+    })
+  });
 });
 
 documentsRouter.post("/:documentId/components", (req, res, next) => {

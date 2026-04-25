@@ -1,5 +1,6 @@
 import type {
   ApiProviderStatus,
+  DocumentBasicInfo,
   DocumentSummary,
   ProductSummary,
   RegulatoryRecheckResult,
@@ -33,6 +34,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   documents: () => request<{ documents: DocumentSummary[] }>("/api/documents"),
+  documentBasicInfo: (documentId: string) => request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`),
   queues: () => request<{ items: ReviewQueueItem[] }>("/api/queues"),
   components: (documentId: string) => request<{ rows: Section3Row[] }>(`/api/documents/${documentId}/components`),
   addComponent: (documentId: string, payload: ComponentCandidatePayload) =>

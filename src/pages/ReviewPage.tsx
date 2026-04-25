@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
-import type { DocumentSummary, RegulatoryRecheckResult, Section3Row } from "../../shared/types";
+import { processingStatusLabels } from "../../shared/status";
+import type { BasicInfoField, DocumentSummary, RegulatoryRecheckResult, Section3Row } from "../../shared/types";
 import { api, type ComponentCandidatePayload } from "../api/client";
+import { BasicInfoPanel } from "../components/BasicInfoPanel";
 import { ComponentReviewPanel } from "../components/ComponentReviewPanel";
 import { ComponentTable } from "../components/ComponentTable";
 
 export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
   const [selectedId, setSelectedId] = useState(documents[0]?.documentId ?? "");
   const [rows, setRows] = useState<Section3Row[]>([]);
+  const [basicInfoFields, setBasicInfoFields] = useState<BasicInfoField[]>([]);
   const [recheckingRowId, setRecheckingRowId] = useState("");
   const [recheckMessages, setRecheckMessages] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!selectedId) return;
-    void api.components(selectedId).then((result) => setRows(result.rows));
+    void Promise.all([api.components(selectedId), api.documentBasicInfo(selectedId)]).then(([componentResult, basicInfoResult]) => {
+      setRows(componentResult.rows);
+      setBasicInfoFields(basicInfoResult.fields);
+    });
   }, [selectedId]);
 
   useEffect(() => {
@@ -69,11 +75,12 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
         {documents.map((document) => (
           <button className={selectedId === document.documentId ? "selected" : ""} key={document.documentId} onClick={() => setSelectedId(document.documentId)} type="button">
             <strong>{document.fileName}</strong>
-            <span>{document.status}</span>
+            <span>{processingStatusLabels[document.status]}</span>
           </button>
         ))}
       </aside>
       <div className="review-main">
+        <BasicInfoPanel fields={basicInfoFields} />
         <ComponentTable
           rows={rows}
           onAdd={handleAdd}
