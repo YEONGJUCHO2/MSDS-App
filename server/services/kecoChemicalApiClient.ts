@@ -6,7 +6,7 @@ type Fetcher = (url: string) => Promise<{ ok: boolean; text(): Promise<string>; 
 
 export async function lookupKecoChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch) {
   const cached = getChemicalApiCache(db, "keco", casNo);
-  if (cached && new Date(cached.expiresAt).getTime() > Date.now()) {
+  if (cached?.status === "ok" && new Date(cached.expiresAt).getTime() > Date.now()) {
     return {
       cacheStatus: "hit" as const,
       matches: parseKecoResponse(casNo, cached.responseText, cached.requestUrl)
@@ -53,15 +53,18 @@ export function isKecoApiConfigured() {
 }
 
 function buildKecoUrl(endpoint: string, serviceKey: string, casNo: string) {
-  const url = new URL(endpoint);
+  const url = new URL(normalizeKecoEndpoint(endpoint));
   url.searchParams.set("serviceKey", serviceKey);
+  url.searchParams.set("searchGubun", "2");
   url.searchParams.set("casNo", casNo);
-  url.searchParams.set("searchWrd", casNo);
   url.searchParams.set("numOfRows", "10");
   url.searchParams.set("pageNo", "1");
-  url.searchParams.set("_type", "json");
-  url.searchParams.set("type", "json");
   return url;
+}
+
+function normalizeKecoEndpoint(endpoint: string) {
+  const normalized = endpoint.replace(/\/$/, "");
+  return normalized.endsWith("/chemSbstnList") ? normalized : `${normalized}/chemSbstnList`;
 }
 
 function parseKecoResponse(casNo: string, responseText: string, sourceUrl: string): OfficialChemicalMatch[] {
@@ -124,11 +127,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function summarizeItem(item: Record<string, unknown>) {
   const parts = [
-    valueOf(item, ["chemNmKor", "chemNameKor", "korNm", "chemNmKr", "물질명국문"]),
-    valueOf(item, ["chemNmEng", "chemNameEng", "engNm", "물질명영문"]),
-    valueOf(item, ["keNo", "ke_no", "KE_NO"]),
-    valueOf(item, ["molFoml", "molecularFormula", "분자식"]),
-    valueOf(item, ["molWt", "molecularWeight", "분자량"])
+    valueOf(item, ["sbstnNmKor", "chemNmKor", "chemNameKor", "korNm", "chemNmKr", "물질명국문"]),
+    valueOf(item, ["sbstnNmEng", "chemNmEng", "chemNameEng", "engNm", "물질명영문"]),
+    valueOf(item, ["korexst", "keNo", "ke_no", "KE_NO"]),
+    valueOf(item, ["mlcfrm", "molFoml", "molecularFormula", "분자식"]),
+    valueOf(item, ["mlcwgt", "molWt", "molecularWeight", "분자량"])
   ].filter(Boolean);
   return parts.length > 0 ? parts.join(" / ") : JSON.stringify(item).slice(0, 1000);
 }

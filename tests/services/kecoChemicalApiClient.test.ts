@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { migrate } from "../../server/db/schema";
+import { upsertChemicalApiCache } from "../../server/db/repositories";
 import { lookupKecoChemicalInfo } from "../../server/services/kecoChemicalApiClient";
 
 describe("KECO chemical API client", () => {
@@ -37,6 +38,10 @@ describe("KECO chemical API client", () => {
     const second = await lookupKecoChemicalInfo(db, "67-64-1", fetcher);
 
     expect(fetcher).toHaveBeenCalledTimes(1);
+    const requestedUrl = new URL(fetcher.mock.calls[0][0]);
+    expect(requestedUrl.pathname).toBe("/keco/chemSbstnList");
+    expect(requestedUrl.searchParams.get("searchGubun")).toBe("2");
+    expect(requestedUrl.searchParams.get("casNo")).toBe("67-64-1");
     expect(first.matches[0]).toMatchObject({
       casNo: "67-64-1",
       category: "chemicalInfoLookup",
@@ -46,5 +51,29 @@ describe("KECO chemical API client", () => {
     expect(db.prepare("SELECT provider, cas_no AS casNo, status FROM chemical_api_cache").all()).toEqual([
       { provider: "keco", casNo: "67-64-1", status: "ok" }
     ]);
+  });
+
+  it("does not reuse cached failed responses as successful matches", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KECO_CHEM_API_URL = "https://example.test/keco";
+    process.env.KECO_API_SERVICE_KEY = "service-key";
+    upsertChemicalApiCache(db, {
+      provider: "keco",
+      casNo: "67-64-1",
+      requestUrl: "https://example.test/keco/chemSbstnList",
+      responseText: "Not found",
+      status: "http_404"
+    });
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ body: { items: [] } })
+    });
+
+    const result = await lookupKecoChemicalInfo(db, "67-64-1", fetcher);
+
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(result.cacheStatus).toBe("miss");
+    expect(result.matches).toEqual([]);
   });
 });

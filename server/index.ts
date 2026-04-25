@@ -1,3 +1,4 @@
+import "./config/loadEnv";
 import express from "express";
 import { getDb } from "./db/connection";
 import { documentsRouter } from "./routes/documents";
