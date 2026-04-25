@@ -16,7 +16,7 @@ export const aiReviewStatusLabels: Record<AiReviewStatus, string> = {
 export const regulatoryMatchStatusLabels: Record<RegulatoryMatchStatus, string> = {
   not_checked: "DB 미조회",
   internal_seed_matched: "내부 기준 매칭",
-  official_api_matched: "공식 API 매칭",
+  official_api_matched: "공식 API 조회",
   api_key_required: "API키 필요",
   no_match: "매칭 없음"
 };

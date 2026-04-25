@@ -57,4 +57,46 @@ describe("ComponentTable", () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("CAS No.\t화학물질\tMIN\tMAX\t단일\t특별관리물질"));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("1344-28-1\t산화알루미늄\t1\t5\t"));
   });
+
+  it("separates official lookup-only rows from exportable regulatory hits", () => {
+    render(
+      <ComponentTable
+        rows={[
+          {
+            rowId: "row-1",
+            rowIndex: 0,
+            rawRowText: "철 7439-89-6 65~75",
+            casNoCandidate: "7439-89-6",
+            chemicalNameCandidate: "철 Iron",
+            contentMinCandidate: "65",
+            contentMaxCandidate: "75",
+            contentSingleCandidate: "",
+            contentText: "65~75",
+            confidence: 0.92,
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            regulatoryMatches: [
+              {
+                matchId: "match-1",
+                rowId: "row-1",
+                documentId: "doc-1",
+                casNo: "7439-89-6",
+                category: "chemicalInfoLookup",
+                status: "공식 API 조회됨",
+                sourceType: "official_api",
+                sourceName: "한국환경공단 화학물질 정보 조회 서비스",
+                sourceUrl: "https://example.test",
+                evidenceText: "Iron / KE-21059",
+                checkedAt: "2026-04-25T00:00:00.000Z"
+              }
+            ]
+          }
+        ]}
+      />
+    );
+
+    expect(screen.getByText("사내 입력 반영 0건")).toBeInTheDocument();
+    expect(screen.getByText("공식 정보 조회만 된 항목은 사내 입력 컬럼에 표시하지 않습니다.")).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "Y" })).not.toBeInTheDocument();
+  });
 });

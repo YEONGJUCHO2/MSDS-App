@@ -46,6 +46,20 @@ export function formatSingleComponentAsTsv(row: Section3Row) {
   return formatComponentRowsAsTsv([row]);
 }
 
+export function countComponentExportRegulatoryHits(rows: Section3Row[]) {
+  return rows.reduce((count, row) => {
+    const values = REGULATORY_COMPONENT_EXPORT_COLUMNS.filter((column) => "categories" in column)
+      .map((column) => regulatoryValue(row.regulatoryMatches, column));
+    return count + values.filter(Boolean).length;
+  }, 0);
+}
+
+export function hasOfficialLookupOnlyMatches(rows: Section3Row[]) {
+  return rows.some((row) =>
+    (row.regulatoryMatches ?? []).some((match) => match.sourceType === "official_api" && !isExportCategory(match.category))
+  );
+}
+
 function regulatoryValue(matches: RegulatoryMatch[] | undefined, column: RegulatoryComponentExportColumn) {
   if (!("categories" in column)) return "";
   const match = (matches ?? []).find((candidate) => column.categories.includes(candidate.category as never));
@@ -53,6 +67,10 @@ function regulatoryValue(matches: RegulatoryMatch[] | undefined, column: Regulat
   if (match.status.startsWith("비해당")) return "";
   if (match.status.includes("확인")) return match.status;
   return "Y";
+}
+
+function isExportCategory(category: string) {
+  return REGULATORY_COMPONENT_EXPORT_COLUMNS.some((column) => "categories" in column && column.categories.includes(category as never));
 }
 
 function escapeTsvCell(value: string) {

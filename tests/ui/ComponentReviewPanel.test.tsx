@@ -96,6 +96,30 @@ describe("ComponentReviewPanel", () => {
     expect(screen.getByText("공식 API URL/키가 설정되지 않아 외부 조회는 실행되지 않았습니다.")).toBeInTheDocument();
   });
 
+  it("labels official API results as lookup results instead of export matches", () => {
+    render(
+      <ComponentReviewPanel
+        rows={[
+          {
+            rowId: "row-1",
+            casNoCandidate: "7439-89-6",
+            chemicalNameCandidate: "Iron",
+            contentText: "65~75",
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            aiReviewStatus: "ai_candidate",
+            aiReviewNote: "CAS No., 물질명, 함유량이 같은 행에서 추출되었습니다.",
+            regulatoryMatchStatus: "official_api_matched",
+            regulatoryMatches: []
+          }
+        ]}
+      />
+    );
+
+    expect(screen.getByText("공식 API 조회")).toBeInTheDocument();
+    expect(screen.queryByText("공식 API 매칭")).not.toBeInTheDocument();
+  });
+
   it("does not render extracted concentration values as chemical names", () => {
     render(
       <ComponentReviewPanel
