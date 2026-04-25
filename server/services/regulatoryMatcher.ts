@@ -3,6 +3,7 @@ import type { RegulatoryMatchStatus } from "../../shared/types";
 import { deleteRegulatoryMatchesForRow, getComponentRow, insertRegulatoryMatch, updateComponentRegulatoryStatus, upsertWatchlist } from "../db/repositories";
 import { lookupRegulatoryCandidates } from "./regulatoryLookup";
 import { isKecoApiConfigured, lookupKecoChemicalInfo } from "./kecoChemicalApiClient";
+import { isOfficialApiConfigured, lookupKoshaChemicalInfo } from "./koshaApiClient";
 
 export async function matchAndStoreRegulatoryData(
   db: Database.Database,
@@ -30,8 +31,9 @@ export async function matchAndStoreRegulatoryData(
       });
     }
 
-    const officialLookup = await lookupKecoChemicalInfo(db, row.casNoCandidate);
-    const officialMatches = officialLookup.matches;
+    const kecoLookup = await lookupKecoChemicalInfo(db, row.casNoCandidate);
+    const koshaLookup = kecoLookup.matches.length === 0 ? await lookupKoshaChemicalInfo(db, row.casNoCandidate) : { matches: [] };
+    const officialMatches = [...kecoLookup.matches, ...koshaLookup.matches];
     for (const match of officialMatches) {
       insertRegulatoryMatch(db, {
         rowId: row.rowId,
@@ -51,7 +53,7 @@ export async function matchAndStoreRegulatoryData(
     upsertWatchlist(db, {
       casNo: row.casNoCandidate,
       chemicalName: row.chemicalNameCandidate,
-      sourceName: officialMatches.length > 0 ? "한국환경공단 화학물질 정보 조회 서비스" : seedMatches.length > 0 ? "내부 기준표" : "조회 대기",
+      sourceName: officialMatches.length > 0 ? officialMatches[0].sourceName : seedMatches.length > 0 ? "내부 기준표" : "조회 대기",
       status
     });
     results.push({ rowId: row.rowId, seedMatches: seedMatches.length, apiMatches: officialMatches.length, status });
@@ -73,6 +75,6 @@ export async function recheckComponentRegulatoryData(db: Database.Database, docu
 function chooseStatus(seedMatches: number, officialMatches: number): RegulatoryMatchStatus {
   if (officialMatches > 0) return "official_api_matched";
   if (seedMatches > 0) return "internal_seed_matched";
-  if (!isKecoApiConfigured()) return "api_key_required";
+  if (!isKecoApiConfigured() && !isOfficialApiConfigured()) return "api_key_required";
   return "no_match";
 }

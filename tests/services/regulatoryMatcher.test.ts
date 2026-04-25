@@ -1,11 +1,19 @@
 import Database from "better-sqlite3";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { migrate } from "../../server/db/schema";
 import { insertComponentRows, insertDocument, updateComponentReviewStatus } from "../../server/db/repositories";
 import { importRegulatorySeedCsv } from "../../server/importers/regulatorySeedImport";
 import { matchAndStoreRegulatoryData, recheckComponentRegulatoryData } from "../../server/services/regulatoryMatcher";
 
 describe("regulatory matcher", () => {
+  afterEach(() => {
+    delete process.env.KECO_CHEM_API_URL;
+    delete process.env.KECO_API_SERVICE_KEY;
+    delete process.env.KOSHA_MSDS_API_URL;
+    delete process.env.KOSHA_API_SERVICE_KEY;
+    vi.unstubAllGlobals();
+  });
+
   it("stores seed matches and watchlist rows by CAS No.", async () => {
     const db = new Database(":memory:");
     migrate(db);
@@ -69,6 +77,54 @@ describe("regulatory matcher", () => {
     await recheckComponentRegulatoryData(db, "doc-1", "row-1");
 
     expect(db.prepare("SELECT COUNT(*) AS count FROM regulatory_matches").get()).toEqual({ count: 1 });
+  });
+
+  it("stores KOSHA official matches when KECO has no match", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KOSHA_MSDS_API_URL = "https://msds.kosha.or.kr/openapi/service/msdschem/chemlist";
+    process.env.KOSHA_API_SERVICE_KEY = "service-key";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<response>",
+        "<header><resultCode>00</resultCode><resultMsg>NORMAL SERVICE.</resultMsg></header>",
+        "<body><items><item>",
+        "<casNo>12604-53-4</casNo>",
+        "<chemId>003180</chemId>",
+        "<chemNameKor>페로망가니즈(페로망간)</chemNameKor>",
+        "<keNo>KE-13738</keNo>",
+        "<lastDate>2024-11-01T00:00:00+09:00</lastDate>",
+        "</item></items></body>",
+        "</response>"
+      ].join("")
+    }));
+    insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    insertComponentRows(db, "doc-1", [{
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Ferro Manganese 12604-53-4 1~5%",
+      casNoCandidate: "12604-53-4",
+      chemicalNameCandidate: "Ferro Manganese",
+      contentMinCandidate: "1",
+      contentMaxCandidate: "5",
+      contentSingleCandidate: "",
+      contentText: "1~5",
+      confidence: 0.82,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review"
+    }]);
+
+    const result = await matchAndStoreRegulatoryData(db, "doc-1", [
+      { rowId: "row-1", casNoCandidate: "12604-53-4", chemicalNameCandidate: "Ferro Manganese" }
+    ]);
+
+    expect(result).toEqual([{ rowId: "row-1", seedMatches: 0, apiMatches: 1, status: "official_api_matched" }]);
+    expect(db.prepare("SELECT source_name AS sourceName, evidence_text AS evidenceText FROM regulatory_matches").get()).toEqual({
+      sourceName: "KOSHA MSDS Open API",
+      evidenceText: "페로망가니즈(페로망간) / 12604-53-4 / KE-13738 / 2024-11-01T00:00:00+09:00"
+    });
   });
 
   it("updates component and queue review status together", () => {
