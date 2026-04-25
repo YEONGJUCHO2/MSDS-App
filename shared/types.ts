@@ -1,4 +1,6 @@
 export type ReviewStatus = "needs_review" | "approved" | "edited" | "excluded";
+export type AiReviewStatus = "not_reviewed" | "ai_candidate" | "ai_needs_attention";
+export type RegulatoryMatchStatus = "not_checked" | "internal_seed_matched" | "official_api_matched" | "api_key_required" | "no_match";
 
 export type ProcessingStatus =
   | "uploaded"
@@ -33,6 +35,40 @@ export interface Section3Row {
   confidence: number;
   evidenceLocation: string;
   reviewStatus: ReviewStatus;
+  aiReviewStatus?: AiReviewStatus;
+  aiReviewNote?: string;
+  regulatoryMatchStatus?: RegulatoryMatchStatus;
+  regulatoryMatches?: RegulatoryMatch[];
+}
+
+export interface RegulatoryMatch {
+  matchId: string;
+  rowId: string;
+  documentId: string;
+  casNo: string;
+  category: string;
+  status: string;
+  sourceType: "internal_seed" | "official_api";
+  sourceName: string;
+  sourceUrl: string;
+  evidenceText: string;
+  checkedAt: string;
+}
+
+export interface ApiProviderStatus {
+  provider: "keco" | "kosha";
+  label: string;
+  configured: boolean;
+  cacheCount: number;
+}
+
+export interface WatchlistItem {
+  watchId: string;
+  casNo: string;
+  chemicalName: string;
+  lastSourceName: string;
+  lastCheckedAt: string;
+  status: RegulatoryMatchStatus | string;
 }
 
 export interface ReviewQueueItem {

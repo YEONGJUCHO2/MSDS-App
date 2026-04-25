@@ -4,6 +4,7 @@ import { documentsRouter } from "./routes/documents";
 import { importsRouter } from "./routes/imports";
 import { productsRouter } from "./routes/products";
 import { queuesRouter } from "./routes/queues";
+import { officialLookupsRouter } from "./routes/officialLookups";
 import { revisionsRouter } from "./routes/revisions";
 import { schedulesRouter } from "./routes/schedules";
 import { watchlistRouter } from "./routes/watchlist";
@@ -20,6 +21,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/documents", documentsRouter);
 app.use("/api/imports", importsRouter);
+app.use("/api/official-lookups", officialLookupsRouter);
 app.use("/api/products", productsRouter);
 app.use("/api/queues", queuesRouter);
 app.use("/api/revisions", revisionsRouter);

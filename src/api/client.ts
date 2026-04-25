@@ -1,4 +1,4 @@
-import type { DocumentSummary, ReviewQueueItem, Section3Row } from "../../shared/types";
+import type { ApiProviderStatus, DocumentSummary, ReviewQueueItem, Section3Row, WatchlistItem } from "../../shared/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -12,6 +12,10 @@ export const api = {
   documents: () => request<{ documents: DocumentSummary[] }>("/api/documents"),
   queues: () => request<{ items: ReviewQueueItem[] }>("/api/queues"),
   components: (documentId: string) => request<{ rows: Section3Row[] }>(`/api/documents/${documentId}/components`),
+  recheckComponent: (documentId: string, rowId: string) =>
+    request<{ result: unknown; rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}/recheck`, { method: "POST" }),
+  officialLookupStatus: () => request<{ providers: ApiProviderStatus[] }>("/api/official-lookups/status"),
+  watchlist: () => request<{ items: WatchlistItem[] }>("/api/watchlist"),
   upload: (file: File) => {
     const form = new FormData();
     form.append("file", file);

@@ -1,4 +1,5 @@
 import type { Section3Row } from "../../shared/types";
+import { aiReviewStatusLabels, regulatoryMatchStatusLabels } from "../../shared/status";
 import { StatusBadge } from "./StatusBadge";
 
 export function ComponentTable({ rows }: { rows: Section3Row[] }) {
@@ -13,6 +14,8 @@ export function ComponentTable({ rows }: { rows: Section3Row[] }) {
             <th>MAX</th>
             <th>단일</th>
             <th>근거</th>
+            <th>AI</th>
+            <th>DB</th>
             <th>상태</th>
           </tr>
         </thead>
@@ -25,6 +28,8 @@ export function ComponentTable({ rows }: { rows: Section3Row[] }) {
               <td>{row.contentMaxCandidate || "-"}</td>
               <td>{row.contentSingleCandidate || "-"}</td>
               <td>{row.evidenceLocation}</td>
+              <td>{row.aiReviewStatus ? aiReviewStatusLabels[row.aiReviewStatus] : "-"}</td>
+              <td>{row.regulatoryMatchStatus ? regulatoryMatchStatusLabels[row.regulatoryMatchStatus] : "-"}</td>
               <td><StatusBadge status={row.reviewStatus} /></td>
             </tr>
           ))}

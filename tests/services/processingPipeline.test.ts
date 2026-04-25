@@ -4,10 +4,10 @@ import { migrate } from "../../server/db/schema";
 import { processExtractedText } from "../../server/services/processingPipeline";
 
 describe("processing pipeline", () => {
-  it("creates review queue items from extracted MSDS component rows", () => {
+  it("creates review queue items from extracted MSDS component rows", async () => {
     const db = new Database(":memory:");
     migrate(db);
-    const result = processExtractedText(db, {
+    const result = await processExtractedText(db, {
       documentId: "doc-1",
       fileName: "sample.pdf",
       text: "3. 구성성분의 명칭 및 함유량\nAcetone 67-64-1 30~60%\n4. 응급조치 요령",

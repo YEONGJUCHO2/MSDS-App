@@ -39,7 +39,38 @@ export function migrate(db: Database.Database) {
       confidence REAL NOT NULL,
       evidence_location TEXT NOT NULL,
       review_status TEXT NOT NULL,
+      ai_review_status TEXT NOT NULL DEFAULT 'not_reviewed',
+      ai_review_note TEXT NOT NULL DEFAULT '',
+      regulatory_match_status TEXT NOT NULL DEFAULT 'not_checked',
       FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS regulatory_matches (
+      match_id TEXT PRIMARY KEY,
+      row_id TEXT NOT NULL,
+      document_id TEXT NOT NULL,
+      cas_no TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      source_url TEXT NOT NULL,
+      evidence_text TEXT NOT NULL,
+      checked_at TEXT NOT NULL,
+      FOREIGN KEY (row_id) REFERENCES components(row_id) ON DELETE CASCADE,
+      FOREIGN KEY (document_id) REFERENCES documents(document_id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS chemical_api_cache (
+      cache_id TEXT PRIMARY KEY,
+      provider TEXT NOT NULL,
+      cas_no TEXT NOT NULL,
+      request_url TEXT NOT NULL,
+      response_text TEXT NOT NULL,
+      status TEXT NOT NULL,
+      fetched_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      UNIQUE(provider, cas_no)
     );
 
     CREATE TABLE IF NOT EXISTS review_queue (
@@ -73,6 +104,8 @@ export function migrate(db: Database.Database) {
     CREATE INDEX IF NOT EXISTS idx_regulatory_seeds_cas_no ON regulatory_seeds(cas_no);
     CREATE INDEX IF NOT EXISTS idx_components_document_id ON components(document_id);
     CREATE INDEX IF NOT EXISTS idx_review_queue_status ON review_queue(review_status);
+    CREATE INDEX IF NOT EXISTS idx_regulatory_matches_row_id ON regulatory_matches(row_id);
+    CREATE INDEX IF NOT EXISTS idx_chemical_api_cache_provider_cas ON chemical_api_cache(provider, cas_no);
 
     CREATE TABLE IF NOT EXISTS audit_logs (
       audit_id TEXT PRIMARY KEY,
@@ -94,4 +127,15 @@ export function migrate(db: Database.Database) {
       status TEXT NOT NULL
     );
   `);
+
+  ensureColumn(db, "components", "ai_review_status", "TEXT NOT NULL DEFAULT 'not_reviewed'");
+  ensureColumn(db, "components", "ai_review_note", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "components", "regulatory_match_status", "TEXT NOT NULL DEFAULT 'not_checked'");
+}
+
+function ensureColumn(db: Database.Database, tableName: string, columnName: string, definition: string) {
+  const rows = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>;
+  if (!rows.some((row) => row.name === columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
 }

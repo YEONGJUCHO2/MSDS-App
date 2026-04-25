@@ -1,6 +1,7 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import type { DocumentSummary, Section3Row } from "../../shared/types";
+import type { AiReviewStatus, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, Section3Row } from "../../shared/types";
+import { normalizeUploadedFileName } from "../services/fileName";
 
 export function insertDocument(
   db: Database.Database,
@@ -37,11 +38,11 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
     INSERT INTO components (
       row_id, document_id, row_index, raw_row_text, cas_no_candidate, chemical_name_candidate,
       content_min_candidate, content_max_candidate, content_single_candidate, content_text,
-      confidence, evidence_location, review_status
+      confidence, evidence_location, review_status, ai_review_status, ai_review_note, regulatory_match_status
     ) VALUES (
       @rowId, @documentId, @rowIndex, @rawRowText, @casNoCandidate, @chemicalNameCandidate,
       @contentMinCandidate, @contentMaxCandidate, @contentSingleCandidate, @contentText,
-      @confidence, @evidenceLocation, @reviewStatus
+      @confidence, @evidenceLocation, @reviewStatus, @aiReviewStatus, @aiReviewNote, @regulatoryMatchStatus
     )
   `);
 
@@ -53,7 +54,14 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
   const transaction = db.transaction(() => {
     for (const row of rows) {
       const rowId = row.rowId ?? nanoid();
-      insert.run({ ...row, rowId, documentId });
+      insert.run({
+        ...row,
+        rowId,
+        documentId,
+        aiReviewStatus: row.aiReviewStatus ?? "not_reviewed",
+        aiReviewNote: row.aiReviewNote ?? "",
+        regulatoryMatchStatus: row.regulatoryMatchStatus ?? "not_checked"
+      });
       insertQueue.run({
         queueId: nanoid(),
         documentId,
@@ -70,7 +78,7 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
 }
 
 export function listDocuments(db: Database.Database): DocumentSummary[] {
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT
       d.document_id AS documentId,
       d.file_name AS fileName,
@@ -84,6 +92,11 @@ export function listDocuments(db: Database.Database): DocumentSummary[] {
     GROUP BY d.document_id
     ORDER BY d.uploaded_at DESC
   `).all() as DocumentSummary[];
+
+  return rows.map((row) => ({
+    ...row,
+    fileName: normalizeUploadedFileName(row.fileName)
+  }));
 }
 
 export function listReviewQueue(db: Database.Database) {
@@ -103,7 +116,7 @@ export function listReviewQueue(db: Database.Database) {
 }
 
 export function listComponentRows(db: Database.Database, documentId: string): Section3Row[] {
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT
       row_id AS rowId,
       row_index AS rowIndex,
@@ -116,9 +129,172 @@ export function listComponentRows(db: Database.Database, documentId: string): Se
       content_text AS contentText,
       confidence,
       evidence_location AS evidenceLocation,
-      review_status AS reviewStatus
+      review_status AS reviewStatus,
+      ai_review_status AS aiReviewStatus,
+      ai_review_note AS aiReviewNote,
+      regulatory_match_status AS regulatoryMatchStatus
     FROM components
     WHERE document_id = ?
     ORDER BY row_index ASC
   `).all(documentId) as Section3Row[];
+
+  if (rows.length === 0) return rows;
+  const matches = db.prepare(`
+    SELECT
+      match_id AS matchId,
+      row_id AS rowId,
+      document_id AS documentId,
+      cas_no AS casNo,
+      category,
+      status,
+      source_type AS sourceType,
+      source_name AS sourceName,
+      source_url AS sourceUrl,
+      evidence_text AS evidenceText,
+      checked_at AS checkedAt
+    FROM regulatory_matches
+    WHERE document_id = ?
+    ORDER BY source_type ASC, category ASC
+  `).all(documentId) as RegulatoryMatch[];
+  const matchesByRow = new Map<string, RegulatoryMatch[]>();
+  for (const match of matches) {
+    matchesByRow.set(match.rowId, [...(matchesByRow.get(match.rowId) ?? []), match]);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    regulatoryMatches: row.rowId ? matchesByRow.get(row.rowId) ?? [] : []
+  }));
+}
+
+export function getComponentRow(db: Database.Database, rowId: string) {
+  return db.prepare(`
+    SELECT
+      row_id AS rowId,
+      document_id AS documentId,
+      cas_no_candidate AS casNoCandidate,
+      chemical_name_candidate AS chemicalNameCandidate
+    FROM components
+    WHERE row_id = ?
+  `).get(rowId) as
+    | {
+        rowId: string;
+        documentId: string;
+        casNoCandidate: string;
+        chemicalNameCandidate: string;
+      }
+    | undefined;
+}
+
+export function updateComponentAiReview(
+  db: Database.Database,
+  rowId: string,
+  input: { aiReviewStatus: AiReviewStatus; aiReviewNote: string }
+) {
+  db.prepare("UPDATE components SET ai_review_status = @aiReviewStatus, ai_review_note = @aiReviewNote WHERE row_id = @rowId").run({
+    rowId,
+    ...input
+  });
+}
+
+export function updateComponentRegulatoryStatus(db: Database.Database, rowId: string, status: RegulatoryMatchStatus) {
+  db.prepare("UPDATE components SET regulatory_match_status = ? WHERE row_id = ?").run(status, rowId);
+}
+
+export function insertRegulatoryMatch(
+  db: Database.Database,
+  input: Omit<RegulatoryMatch, "matchId" | "checkedAt">
+) {
+  db.prepare(`
+    INSERT INTO regulatory_matches (
+      match_id, row_id, document_id, cas_no, category, status, source_type,
+      source_name, source_url, evidence_text, checked_at
+    ) VALUES (
+      @matchId, @rowId, @documentId, @casNo, @category, @status, @sourceType,
+      @sourceName, @sourceUrl, @evidenceText, @checkedAt
+    )
+  `).run({
+    matchId: nanoid(),
+    checkedAt: new Date().toISOString(),
+    ...input
+  });
+}
+
+export function deleteRegulatoryMatchesForRow(db: Database.Database, rowId: string) {
+  db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+}
+
+export function upsertWatchlist(db: Database.Database, input: { casNo: string; chemicalName: string; sourceName: string; status: string }) {
+  db.prepare(`
+    INSERT INTO watchlist (watch_id, cas_no, chemical_name, last_source_name, last_checked_at, status)
+    VALUES (@watchId, @casNo, @chemicalName, @sourceName, @checkedAt, @status)
+    ON CONFLICT(cas_no) DO UPDATE SET
+      chemical_name = excluded.chemical_name,
+      last_source_name = excluded.last_source_name,
+      last_checked_at = excluded.last_checked_at,
+      status = excluded.status
+  `).run({
+    watchId: nanoid(),
+    checkedAt: new Date().toISOString(),
+    ...input
+  });
+}
+
+export function getChemicalApiCache(db: Database.Database, provider: string, casNo: string) {
+  return db.prepare(`
+    SELECT
+      cache_id AS cacheId,
+      provider,
+      cas_no AS casNo,
+      request_url AS requestUrl,
+      response_text AS responseText,
+      status,
+      fetched_at AS fetchedAt,
+      expires_at AS expiresAt
+    FROM chemical_api_cache
+    WHERE provider = ? AND cas_no = ?
+  `).get(provider, casNo) as
+    | {
+        cacheId: string;
+        provider: string;
+        casNo: string;
+        requestUrl: string;
+        responseText: string;
+        status: string;
+        fetchedAt: string;
+        expiresAt: string;
+      }
+    | undefined;
+}
+
+export function upsertChemicalApiCache(
+  db: Database.Database,
+  input: { provider: string; casNo: string; requestUrl: string; responseText: string; status: string; ttlDays?: number }
+) {
+  const fetchedAt = new Date();
+  const expiresAt = new Date(fetchedAt);
+  expiresAt.setDate(expiresAt.getDate() + (input.ttlDays ?? 30));
+  db.prepare(`
+    INSERT INTO chemical_api_cache (
+      cache_id, provider, cas_no, request_url, response_text, status, fetched_at, expires_at
+    ) VALUES (
+      @cacheId, @provider, @casNo, @requestUrl, @responseText, @status, @fetchedAt, @expiresAt
+    )
+    ON CONFLICT(provider, cas_no) DO UPDATE SET
+      request_url = excluded.request_url,
+      response_text = excluded.response_text,
+      status = excluded.status,
+      fetched_at = excluded.fetched_at,
+      expires_at = excluded.expires_at
+  `).run({
+    cacheId: nanoid(),
+    fetchedAt: fetchedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    ...input
+  });
+}
+
+export function countChemicalApiCache(db: Database.Database, provider: string) {
+  const row = db.prepare("SELECT COUNT(*) AS count FROM chemical_api_cache WHERE provider = ?").get(provider) as { count: number };
+  return row.count;
 }

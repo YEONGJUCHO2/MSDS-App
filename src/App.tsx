@@ -37,8 +37,8 @@ export default function App() {
   }, []);
 
   return (
-    <div className="app-shell">
-      <nav className="app-nav">
+    <div className="app-shell" data-testid="app-shell">
+      <nav className="app-nav" data-testid="app-nav">
         <div className="brand">
           <strong>MSDS Watcher</strong>
           <span>local review console</span>
@@ -50,7 +50,7 @@ export default function App() {
           </button>
         ))}
       </nav>
-      <div className="content">
+      <div className="content" data-testid="app-content">
         {page === "dashboard" ? <DashboardPage documents={documents} queueItems={queueItems} onNavigate={setPage} /> : null}
         {page === "upload" ? <UploadPage onUploaded={() => void refresh()} /> : null}
         {page === "review" ? <ReviewPage documents={documents} /> : null}

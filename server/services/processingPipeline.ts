@@ -1,9 +1,12 @@
 import type Database from "better-sqlite3";
+import { nanoid } from "nanoid";
 import { insertComponentRows, insertDocument, upsertDocumentText } from "../db/repositories";
+import { reviewComponentRowsWithOptionalCodex } from "./aiReviewer";
+import { matchAndStoreRegulatoryData } from "./regulatoryMatcher";
 import { classifyPdfTextLayer } from "./scanDetector";
 import { extractSection3Rows } from "./tableExtractor";
 
-export function processExtractedText(
+export async function processExtractedText(
   db: Database.Database,
   input: { documentId?: string; fileName: string; fileHash?: string; storagePath?: string; text: string; pageCount: number }
 ) {
@@ -34,8 +37,12 @@ export function processExtractedText(
     };
   }
 
-  const componentRows = extractSection3Rows(input.text);
+  const componentRows = (await reviewComponentRowsWithOptionalCodex(input.text, extractSection3Rows(input.text))).map((row) => ({
+    ...row,
+    rowId: row.rowId ?? nanoid()
+  }));
   insertComponentRows(db, activeDocumentId, componentRows);
+  await matchAndStoreRegulatoryData(db, activeDocumentId, componentRows);
   upsertDocumentText(db, activeDocumentId, input.text, input.pageCount, "needs_review");
 
   return {

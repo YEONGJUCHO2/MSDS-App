@@ -10,7 +10,8 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "tsx server/scripts/seed.ts"
+    "seed": "tsx server/scripts/seed.ts",
+    "backfill:mvp": "tsx server/scripts/backfillMvpReview.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
