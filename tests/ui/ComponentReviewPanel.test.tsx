@@ -71,6 +71,30 @@ describe("ComponentReviewPanel", () => {
     expect(onRecheck).toHaveBeenCalledWith("row-1");
   });
 
+  it("shows the latest official lookup message for a row", () => {
+    render(
+      <ComponentReviewPanel
+        recheckMessages={{ "row-1": "공식 API URL/키가 설정되지 않아 외부 조회는 실행되지 않았습니다." }}
+        rows={[
+          {
+            rowId: "row-1",
+            casNoCandidate: "67-64-1",
+            chemicalNameCandidate: "Acetone",
+            contentText: "30~60%",
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            aiReviewStatus: "ai_candidate",
+            aiReviewNote: "CAS No., 물질명, 함유량이 같은 행에서 추출되었습니다.",
+            regulatoryMatchStatus: "api_key_required",
+            regulatoryMatches: []
+          }
+        ]}
+      />
+    );
+
+    expect(screen.getByText("공식 API URL/키가 설정되지 않아 외부 조회는 실행되지 않았습니다.")).toBeInTheDocument();
+  });
+
   it("lets users approve or exclude a component row", () => {
     const onReviewStatusChange = vi.fn();
     render(

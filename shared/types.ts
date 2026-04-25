@@ -55,6 +55,13 @@ export interface RegulatoryMatch {
   checkedAt: string;
 }
 
+export interface RegulatoryRecheckResult {
+  rowId: string;
+  seedMatches: number;
+  apiMatches: number;
+  status: RegulatoryMatchStatus;
+}
+
 export interface ApiProviderStatus {
   provider: "keco" | "kosha";
   label: string;

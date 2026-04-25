@@ -299,6 +299,15 @@ input {
   cursor: pointer;
 }
 
+.lookup-feedback {
+  padding: 8px 10px;
+  border: 1px solid #cfe0ec;
+  border-radius: 6px;
+  background: #f4f9fc;
+  color: #365269;
+  font-size: 13px;
+}
+
 .component-item header div,
 .field-row div,
 .queue-item div {

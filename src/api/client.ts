@@ -1,4 +1,4 @@
-import type { ApiProviderStatus, DocumentSummary, ReviewQueueItem, ReviewStatus, Section3Row, WatchlistItem } from "../../shared/types";
+import type { ApiProviderStatus, DocumentSummary, RegulatoryRecheckResult, ReviewQueueItem, ReviewStatus, Section3Row, WatchlistItem } from "../../shared/types";
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
@@ -13,7 +13,7 @@ export const api = {
   queues: () => request<{ items: ReviewQueueItem[] }>("/api/queues"),
   components: (documentId: string) => request<{ rows: Section3Row[] }>(`/api/documents/${documentId}/components`),
   recheckComponent: (documentId: string, rowId: string) =>
-    request<{ result: unknown; rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}/recheck`, { method: "POST" }),
+    request<{ result: RegulatoryRecheckResult; rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}/recheck`, { method: "POST" }),
   reviewComponent: (documentId: string, rowId: string, reviewStatus: ReviewStatus) =>
     request<{ rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}/review`, {
       method: "POST",

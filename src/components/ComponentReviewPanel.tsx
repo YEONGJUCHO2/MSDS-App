@@ -7,11 +7,12 @@ interface ComponentReviewPanelProps {
   rows: Array<Pick<Section3Row, "rowId" | "casNoCandidate" | "chemicalNameCandidate" | "contentText" | "evidenceLocation" | "reviewStatus" | "aiReviewStatus" | "aiReviewNote" | "regulatoryMatchStatus" | "regulatoryMatches">>;
   onRecheck?: (rowId: string) => void;
   onReviewStatusChange?: (rowId: string, reviewStatus: Extract<ReviewStatus, "approved" | "excluded">) => void;
+  recheckMessages?: Record<string, string>;
   recheckingRowId?: string;
   updatingReviewRowId?: string;
 }
 
-export function ComponentReviewPanel({ rows, onRecheck, onReviewStatusChange, recheckingRowId, updatingReviewRowId }: ComponentReviewPanelProps) {
+export function ComponentReviewPanel({ rows, onRecheck, onReviewStatusChange, recheckMessages = {}, recheckingRowId, updatingReviewRowId }: ComponentReviewPanelProps) {
   if (rows.length === 0) {
     return <div className="empty">성분 후보가 없습니다. 스캔본이면 OCR 또는 수동입력 큐로 보내야 합니다.</div>;
   }
@@ -47,6 +48,7 @@ export function ComponentReviewPanel({ rows, onRecheck, onReviewStatusChange, re
               value={row.regulatoryMatchStatus ? regulatoryMatchStatusLabels[row.regulatoryMatchStatus] : "DB 미조회"}
               evidence={(row.regulatoryMatches ?? []).map((match) => `${match.sourceName}: ${match.evidenceText || match.category}`).join(" / ")}
             />
+            {row.rowId && recheckMessages[row.rowId] ? <div className="lookup-feedback">{recheckMessages[row.rowId]}</div> : null}
             {row.rowId && onReviewStatusChange ? (
               <div className="review-actions">
                 <button disabled={updatingReviewRowId === row.rowId} onClick={() => onReviewStatusChange(row.rowId!, "approved")} type="button">확인</button>
