@@ -16,7 +16,7 @@ export function ComponentReviewPanel({ rows, onRecheck, recheckMessages = {}, re
   return (
     <section className="panel">
       <div className="panel-title">
-        <h2>성분 검수</h2>
+        <h2>성분 확인</h2>
         <span>{rows.length}개 후보</span>
       </div>
       <div className="table-shell">

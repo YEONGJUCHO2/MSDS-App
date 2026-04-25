@@ -30,7 +30,7 @@ export function createOcrAdapter(options: { enabled: boolean }): OcrAdapter {
           status: confidence >= 65 ? "ocr_completed" : "ocr_low_confidence",
           text: result.data.text,
           confidence,
-          message: confidence >= 65 ? "OCR 후보 텍스트를 생성했습니다." : "OCR 신뢰도가 낮아 원문 대조 검수가 필요합니다."
+          message: confidence >= 65 ? "OCR 후보 텍스트를 생성했습니다." : "OCR 신뢰도가 낮아 원문 대조 확인이 필요합니다."
         };
       } finally {
         await worker.terminate();

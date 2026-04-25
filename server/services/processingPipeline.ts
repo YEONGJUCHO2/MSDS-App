@@ -49,6 +49,6 @@ export async function processExtractedText(
     documentId: activeDocumentId,
     status: "needs_review" as const,
     componentRows,
-    message: `${componentRows.length}개 성분 후보를 검수 큐에 등록했습니다.`
+    message: `${componentRows.length}개 성분 후보 중 확인이 필요한 항목을 큐에 등록했습니다.`
   };
 }

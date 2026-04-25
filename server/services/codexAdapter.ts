@@ -30,7 +30,7 @@ export function createCodexAdapter(options: { enabled: boolean; command?: string
           status: "disabled",
           reviewStatus: "needs_review",
           candidate: fallbackCandidate,
-          message: "Codex CLI 실행이 비활성화되어 로컬 파서 후보만 검수 큐에 올렸습니다."
+          message: "Codex CLI 실행이 비활성화되어 로컬 파서 후보 중 확인이 필요한 항목만 큐에 올렸습니다."
         };
       }
 
@@ -68,7 +68,7 @@ function runCodex(command: string, input: CodexExtractionInput) {
     });
 
     child.stdin.write(JSON.stringify({
-      instruction: "MSDS 추출 텍스트와 SECTION 3 행을 사내 등록 후보 JSON으로 구조화하라. 법적 최종판정은 하지 말고 검수필요 후보로 표시하라.",
+      instruction: "MSDS 추출 텍스트와 SECTION 3 행을 사내 등록 후보 JSON으로 구조화하라. 법적 최종판정은 하지 말고 확인 필요 후보로 표시하라.",
       input
     }));
     child.stdin.end();

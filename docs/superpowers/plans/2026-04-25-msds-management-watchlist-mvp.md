@@ -2,7 +2,26 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a local web MVP that uploads MSDS PDFs, extracts registration candidates with table-aware parsing, matches CAS No. against seeded regulatory standards, compares product MSDS revisions, lets a 담당자 verify values, stores managed records, and creates a CAS No. watchlist for later change monitoring.
+## 2026-04-25 Product Direction Correction
+
+This plan is not a one-off internal registration copy helper. The registration output is the first useful artifact, but the product goal is chemical/MSDS management:
+
+```text
+MSDS upload
+→ PDF/OCR/AI component structuring
+→ human confirmation only where automation needs help
+→ official API lookup first
+→ internal registration output
+→ managed product/component/site/supplier records
+→ CAS watchlist
+→ monthly or manual batch re-query
+→ regulatory-change candidate and MSDS revision-needed alerts
+→ field MSDS replacement/share actions
+```
+
+Internal seed data is fallback/supporting data. It must not outrank official APIs. Review/attention queues should contain only automation blockers or management risks, not every extracted component.
+
+**Goal:** Build a local web MVP that uploads MSDS PDFs, extracts registration candidates with table-aware parsing, matches CAS No. against official APIs first and seeded regulatory standards only as fallback/supporting evidence, compares product MSDS revisions, lets a 담당자 verify values, stores managed records, and creates a CAS No. watchlist for manual/monthly change monitoring.
 
 **Architecture:** Use a Vite React frontend and an Express local backend in one workspace. The backend owns PDF storage, SQLite persistence, text/table extraction, scan detection, seed imports, Codex CLI invocation behind a security-gated adapter, regulatory lookup, revision diffing, backup, audit logs, and JSON APIs. The frontend is a dense work tool: upload, document list, grouped verification screen, queues, management lists, schedules, revision diffs, and watchlist.
 
@@ -18,9 +37,9 @@ The product has three connected jobs:
 
 1. **등록 보조**: get values into the internal MSDS screen faster.
 2. **관리자동화**: keep verified product, component, supplier, and site data.
-3. **변경감시 기반**: create a CAS watchlist with last lookup metadata.
+3. **변경감시 기반**: create a CAS watchlist with last lookup metadata and support manual/monthly re-query comparison.
 
-Do not build broad legal search in this MVP. Do build the closed, high-value lake: regulatory seed data, table-aware SECTION 3 extraction, scan fallback, product revision diff, management queues, audit log, and backup. Full automated regulatory surveillance across every official database is the ocean.
+Do not build broad legal search in this MVP. Do build the closed, high-value lake: official API lookup by CAS, fallback regulatory seed data, table-aware SECTION 3 extraction, scan fallback, product revision diff, management queues, watchlist re-query history, audit log, and backup. Full automated regulatory surveillance across every official database is the ocean.
 
 ## Review-Driven Scope Corrections
 
@@ -28,7 +47,7 @@ The external review identified real product risks. This plan accepts most of the
 
 | # | Feedback | Decision | Plan Change |
 |---:|---|---|---|
-| 1 | Internal regulatory standards are undefined | Accept | Add CSV seed import as MVP 0순위 |
+| 1 | Internal regulatory standards are undefined | Accept with correction | Add CSV seed import as fallback/supporting data, not primary official evidence |
 | 2 | `pdf-parse` alone breaks SECTION 3 tables | Accept | Add table-aware extractor boundary |
 | 3 | Scanned PDF fallback missing | Accept | Add scan detection, local OCR attempt, confidence status, and manual/supplier fallback |
 | 4 | Copy buttons alone are weak value | Accept | Promote regulatory matching, queues, revision diff, schedules |
@@ -40,7 +59,7 @@ The external review identified real product risks. This plan accepts most of the
 | 10 | External LLM security risk | Accept | Add security mode gate before Codex CLI use |
 | 11 | Audit trail missing | Accept | Add audit log task |
 | 12 | Trade secret policy missing | Accept | Add supplier follow-up handling |
-| 13 | 확인필요 queue missing | Accept | Add queue dashboard as MVP surface |
+| 13 | 확인필요 queue missing | Accept | Add queue dashboard for automation blockers and management risks only |
 | 14 | MSDS 4~15 sections missing | Defer unless required | Keep schema extensible, do not add all by default |
 | 15 | 검수완료 and 등록완료 conflated | Accept | Split review status and registration status |
 
@@ -936,7 +955,7 @@ export type FieldStatus =
   | "공급사 확인 필요"
   | "내부 기준 확인 필요"
   | "자동추출"
-  | "검수필요"
+  | "확인필요"
   | "확인완료"
   | "보류";
 
@@ -1008,7 +1027,7 @@ export const FIELD_STATUSES: FieldStatus[] = [
   "공급사 확인 필요",
   "내부 기준 확인 필요",
   "자동추출",
-  "검수필요",
+  "확인필요",
   "확인완료",
   "보류"
 ];
@@ -1401,7 +1420,7 @@ export function createRepositories(db: Database.Database) {
           manufacturer: input.manufacturer,
           msdsNumber: input.msdsNumber,
           latestRevisionDate: input.latestRevisionDate,
-          reviewStatus: "검수필요",
+          reviewStatus: "확인필요",
           latestRequestStatus: "확인필요"
         };
         db.prepare(`
@@ -1424,7 +1443,7 @@ export function createRepositories(db: Database.Database) {
           componentId: nanoid(),
           ...input,
           tradeSecretFlag: input.tradeSecretFlag ? 1 : 0,
-          reviewStatus: "검수필요"
+          reviewStatus: "확인필요"
         };
         db.prepare(`
           INSERT INTO components VALUES (@componentId, @documentId, @casNo, @chemicalName, @contentMin, @contentMax, @contentSingle, @contentOriginalText, @tradeSecretFlag, @rowCopyText, @reviewStatus)
@@ -2352,7 +2371,7 @@ export function DashboardPage() {
       <h2>대시보드</h2>
       <div className="metric-grid">
         <div className="metric">전체 MSDS<br /><strong>0</strong></div>
-        <div className="metric">검수 필요<br /><strong>0</strong></div>
+        <div className="metric">확인 필요<br /><strong>0</strong></div>
         <div className="metric">Watchlist<br /><strong>0</strong></div>
       </div>
     </section>
@@ -2808,7 +2827,7 @@ export function ReviewPage() {
 
       <h3>유해성 위험성 정보</h3>
       <FieldRow label="제품형태" value="분말" evidence="MSDS 9번 또는 1번" status="자동추출" />
-      <FieldRow label="유해성 위험성" value="심한 눈 손상성/눈 자극성-구분 2" evidence="MSDS 2번" status="검수필요" />
+      <FieldRow label="유해성 위험성" value="심한 눈 손상성/눈 자극성-구분 2" evidence="MSDS 2번" status="확인필요" />
     </section>
   );
 }
@@ -2887,8 +2906,8 @@ git commit -m "feat: add internal registration review page"
 
 ```tsx
 const queues = [
-  { label: "검수필요", count: 0, description: "추출은 끝났지만 담당자 확인이 필요한 항목" },
-  { label: "확인필요", count: 0, description: "공식 출처 또는 내부 기준표 확인이 필요한 항목" },
+  { label: "확인필요", count: 0, description: "자동화가 확정하지 못해 담당자 확인이 필요한 항목" },
+  { label: "공식조회 필요", count: 0, description: "공식 API 조회가 아직 필요하거나 실패한 항목" },
   { label: "공급사 확인 필요", count: 0, description: "CAS No., 함유량, 영업비밀 여부를 공급사에 물어봐야 하는 항목" },
   { label: "내부 기준 확인 필요", count: 0, description: "작업환경측정/특수검진 기준표 확인이 필요한 항목" },
   { label: "등록대기", count: 0, description: "검수완료 후 사내 시스템 입력이 남은 항목" }
