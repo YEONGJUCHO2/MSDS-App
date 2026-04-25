@@ -339,6 +339,13 @@ input {
   font-size: 13px;
 }
 
+.lookup-feedback.compact {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
 .component-item header div,
 .field-row div,
 .queue-item div {
@@ -405,8 +412,63 @@ table {
   border-collapse: collapse;
 }
 
+.component-review-table {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.component-review-table th:nth-child(1),
+.component-review-table td:nth-child(1) {
+  width: 42%;
+}
+
+.component-review-table th:nth-child(2),
+.component-review-table td:nth-child(2) {
+  width: 20%;
+  white-space: nowrap;
+}
+
+.component-review-table th:nth-child(3),
+.component-review-table td:nth-child(3) {
+  width: 14%;
+  white-space: nowrap;
+}
+
+.component-review-table th:nth-child(4),
+.component-review-table td:nth-child(4) {
+  width: 24%;
+}
+
 .component-export-table {
   min-width: 1900px;
+}
+
+.component-export-table th,
+.component-export-table td {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.component-export-table th:nth-child(1),
+.component-export-table td:nth-child(1) {
+  min-width: 128px;
+}
+
+.component-export-table th:nth-child(2),
+.component-export-table td:nth-child(2) {
+  min-width: 260px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.component-export-table th:nth-child(3),
+.component-export-table td:nth-child(3),
+.component-export-table th:nth-child(4),
+.component-export-table td:nth-child(4),
+.component-export-table th:nth-child(5),
+.component-export-table td:nth-child(5) {
+  min-width: 64px;
+  text-align: center;
 }
 
 th,
@@ -415,12 +477,43 @@ td {
   border-bottom: 1px solid #edf1f5;
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
 }
 
 th {
   color: #536170;
   background: #f7f9fb;
   font-size: 13px;
+  white-space: nowrap;
+}
+
+.table-subtext {
+  display: block;
+  margin-top: 4px;
+  color: #647382;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.table-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 8px;
+  min-width: 74px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #c8d3dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #253241;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.table-action:disabled {
+  cursor: progress;
+  opacity: 0.65;
 }
 
 .queue-item {

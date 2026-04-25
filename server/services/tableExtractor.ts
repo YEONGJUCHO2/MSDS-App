@@ -1,7 +1,7 @@
 import type { Section3Row } from "../../shared/types";
 
 const casPattern = /\b\d{2,7}-\d{2}-\d\b/g;
-const concentrationPattern = /(?:<\s*)?\d+(?:\.\d+)?\s*(?:~|to)\s*\d+(?:\.\d+)?\s*%?|(?:<\s*)?\d+(?:\.\d+)?\s*%?/i;
+const concentrationPattern = /(?:<\s*)?\d+(?:\.\d+)?\s*(?:~|-|to)\s*\d+(?:\.\d+)?\s*%?|(?:<\s*)?\d+(?:\.\d+)?\s*%?/i;
 
 export function extractSection3Rows(text: string): Section3Row[] {
   const section = extractSection3Text(text);
@@ -11,22 +11,29 @@ export function extractSection3Rows(text: string): Section3Row[] {
     .filter(Boolean);
 
   const rows: Section3Row[] = [];
+  let pendingNameLines: string[] = [];
 
   for (const line of lines) {
     const casMatches = Array.from(line.matchAll(casPattern));
-    if (casMatches.length === 0) continue;
+    if (casMatches.length === 0) {
+      if (isPossibleChemicalNameLine(line)) {
+        pendingNameLines.push(cleanChemicalNameLine(line));
+      }
+      continue;
+    }
 
     for (const casMatch of casMatches) {
       const casNoCandidate = casMatch[0];
+      const lineAfterCas = line.slice((casMatch.index ?? line.indexOf(casNoCandidate)) + casNoCandidate.length);
       const lineWithoutCas = line.replace(casNoCandidate, " ");
-      const concentrationMatch = lineWithoutCas.match(concentrationPattern);
+      const concentrationMatch = lineAfterCas.match(concentrationPattern) ?? lineWithoutCas.match(concentrationPattern);
       const contentText = concentrationMatch?.[0]?.replace(/\s+/g, "") ?? "";
       const { min, max, single } = parseConcentration(contentText);
-      const chemicalNameCandidate = extractChemicalName(line, casNoCandidate, contentText);
+      const chemicalNameCandidate = extractChemicalName(line, casNoCandidate, contentText, pendingNameLines);
 
       rows.push({
         rowIndex: rows.length,
-        rawRowText: line,
+        rawRowText: [...pendingNameLines, line].join(" "),
         casNoCandidate,
         chemicalNameCandidate,
         contentMinCandidate: min,
@@ -38,6 +45,7 @@ export function extractSection3Rows(text: string): Section3Row[] {
         reviewStatus: "needs_review"
       });
     }
+    pendingNameLines = [];
   }
 
   return rows;
@@ -70,12 +78,21 @@ function parseConcentration(value: string) {
   return { min: "", max: "", single: cleaned };
 }
 
-function extractChemicalName(line: string, casNo: string, contentText: string) {
+function extractChemicalName(line: string, casNo: string, contentText: string, pendingNameLines: string[]) {
   const beforeCas = line.split(casNo)[0] ?? "";
   const withoutHeaders = beforeCas
     .replace(/3\.\s*구성성분의?\s*명칭\s*및\s*함유량/gi, "")
     .replace(/구성성분|명칭|함유량|CAS\s*No\.?/gi, "")
     .trim();
+
+  if (withoutHeaders && !isConcentrationOnly(withoutHeaders)) {
+    return withoutHeaders.replace(/\s{2,}/g, " ").trim();
+  }
+
+  const pendingName = pendingNameLines.join(" ").replace(/\s{2,}/g, " ").trim();
+  if (pendingName && !isConcentrationOnly(pendingName)) {
+    return pendingName;
+  }
 
   const fallback = line
     .replace(casNo, "")
@@ -83,5 +100,26 @@ function extractChemicalName(line: string, casNo: string, contentText: string) {
     .replace(/%/g, "")
     .trim();
 
-  return (withoutHeaders || fallback).replace(/\s{2,}/g, " ").trim();
+  return isConcentrationOnly(fallback) ? "" : fallback.replace(/\s{2,}/g, " ").trim();
+}
+
+function isPossibleChemicalNameLine(line: string) {
+  const cleaned = cleanChemicalNameLine(line);
+  if (!cleaned) return false;
+  if (/^(?:--\s*)?\d+\s+of\s+\d+(?:\s*--)?$/i.test(cleaned)) return false;
+  if (/^(?:\d+\/\d+|가\.|나\.|다\.|라\.|마\.)$/.test(cleaned)) return false;
+  if (/^(?:\d+\.\s*)?(?:화학물질명|관용명|CAS번호|함유량|구성성분|개정일|품명)/i.test(cleaned)) return false;
+  if (isConcentrationOnly(cleaned)) return false;
+  return /[A-Za-z가-힣]/.test(cleaned);
+}
+
+function cleanChemicalNameLine(line: string) {
+  return line
+    .replace(/화학물질명|관용명 및 이명|CAS번호|함유량%?\s*(?:\(w\/w\))?/gi, "")
+    .trim();
+}
+
+function isConcentrationOnly(value: string) {
+  const cleaned = value.replace(/%/g, "").replace(/\s+/g, "");
+  return /^(?:<)?\d+(?:\.\d+)?(?:(?:~|-|to)\d+(?:\.\d+)?)?$/i.test(cleaned);
 }

@@ -4,12 +4,11 @@ import { api } from "../api/client";
 import { ComponentReviewPanel } from "../components/ComponentReviewPanel";
 import { ComponentTable } from "../components/ComponentTable";
 
-export function ReviewPage({ documents, onDataChanged }: { documents: DocumentSummary[]; onDataChanged?: () => void | Promise<void> }) {
+export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
   const [selectedId, setSelectedId] = useState(documents[0]?.documentId ?? "");
   const [rows, setRows] = useState<Section3Row[]>([]);
   const [recheckingRowId, setRecheckingRowId] = useState("");
   const [recheckMessages, setRecheckMessages] = useState<Record<string, string>>({});
-  const [updatingReviewRowId, setUpdatingReviewRowId] = useState("");
 
   useEffect(() => {
     if (!selectedId) return;
@@ -38,18 +37,6 @@ export function ReviewPage({ documents, onDataChanged }: { documents: DocumentSu
     }
   }
 
-  async function handleReviewStatusChange(rowId: string, reviewStatus: "approved" | "excluded") {
-    if (!selectedId) return;
-    setUpdatingReviewRowId(rowId);
-    try {
-      const result = await api.reviewComponent(selectedId, rowId, reviewStatus);
-      setRows(result.rows);
-      await onDataChanged?.();
-    } finally {
-      setUpdatingReviewRowId("");
-    }
-  }
-
   return (
     <main className="review-layout">
       <aside className="sidebar-list">
@@ -64,10 +51,8 @@ export function ReviewPage({ documents, onDataChanged }: { documents: DocumentSu
         <ComponentReviewPanel
           rows={rows}
           onRecheck={handleRecheck}
-          onReviewStatusChange={handleReviewStatusChange}
           recheckMessages={recheckMessages}
           recheckingRowId={recheckingRowId}
-          updatingReviewRowId={updatingReviewRowId}
         />
         <ComponentTable rows={rows} />
       </div>

@@ -53,7 +53,7 @@ export default function App() {
       <div className="content" data-testid="app-content">
         {page === "dashboard" ? <DashboardPage documents={documents} queueItems={queueItems} onNavigate={setPage} /> : null}
         {page === "upload" ? <UploadPage onUploaded={() => void refresh()} /> : null}
-        {page === "review" ? <ReviewPage documents={documents} onDataChanged={() => void refresh()} /> : null}
+        {page === "review" ? <ReviewPage documents={documents} /> : null}
         {page === "queues" ? <QueuesPage items={queueItems} /> : null}
         {page === "products" ? <ProductsPage /> : null}
         {page === "revisions" ? <RevisionDiffPage /> : null}

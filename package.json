@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx server/scripts/seed.ts",
-    "backfill:mvp": "tsx server/scripts/backfillMvpReview.ts"
+    "backfill:mvp": "tsx server/scripts/backfillMvpReview.ts",
+    "reextract:components": "tsx server/scripts/reextractComponents.ts"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.1",
