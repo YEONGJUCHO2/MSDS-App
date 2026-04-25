@@ -5,7 +5,7 @@ import { Router } from "express";
 import multer from "multer";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/connection";
-import { insertDocument, listComponentRows, listDocuments } from "../db/repositories";
+import { insertDocument, listComponentRows, listDocuments, updateComponentReviewStatus } from "../db/repositories";
 import { normalizeUploadedFileName } from "../services/fileName";
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
@@ -26,6 +26,20 @@ documentsRouter.post("/:documentId/components/:rowId/recheck", async (req, res, 
   try {
     const result = await recheckComponentRegulatoryData(getDb(), req.params.documentId, req.params.rowId);
     res.json({ result, rows: listComponentRows(getDb(), req.params.documentId) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+documentsRouter.post("/:documentId/components/:rowId/review", (req, res, next) => {
+  try {
+    const reviewStatus = String(req.body.reviewStatus ?? "");
+    if (!["needs_review", "approved", "edited", "excluded"].includes(reviewStatus)) {
+      res.status(400).json({ error: "invalid reviewStatus" });
+      return;
+    }
+    updateComponentReviewStatus(getDb(), req.params.rowId, reviewStatus as "needs_review" | "approved" | "edited" | "excluded");
+    res.json({ rows: listComponentRows(getDb(), req.params.documentId) });
   } catch (error) {
     next(error);
   }

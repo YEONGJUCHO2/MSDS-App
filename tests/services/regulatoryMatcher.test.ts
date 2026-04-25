@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
 import { migrate } from "../../server/db/schema";
-import { insertComponentRows, insertDocument } from "../../server/db/repositories";
+import { insertComponentRows, insertDocument, updateComponentReviewStatus } from "../../server/db/repositories";
 import { importRegulatorySeedCsv } from "../../server/importers/regulatorySeedImport";
 import { matchAndStoreRegulatoryData, recheckComponentRegulatoryData } from "../../server/services/regulatoryMatcher";
 
@@ -69,5 +69,58 @@ describe("regulatory matcher", () => {
     await recheckComponentRegulatoryData(db, "doc-1", "row-1");
 
     expect(db.prepare("SELECT COUNT(*) AS count FROM regulatory_matches").get()).toEqual({ count: 1 });
+  });
+
+  it("updates component and queue review status together", () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    insertComponentRows(db, "doc-1", [{
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Acetone 67-64-1 30~60%",
+      casNoCandidate: "67-64-1",
+      chemicalNameCandidate: "Acetone",
+      contentMinCandidate: "30",
+      contentMaxCandidate: "60",
+      contentSingleCandidate: "",
+      contentText: "30~60",
+      confidence: 0.82,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review"
+    }]);
+
+    updateComponentReviewStatus(db, "row-1", "approved");
+
+    expect(db.prepare("SELECT review_status AS reviewStatus FROM components").get()).toEqual({ reviewStatus: "approved" });
+    expect(db.prepare("SELECT review_status AS reviewStatus FROM review_queue").get()).toEqual({ reviewStatus: "approved" });
+  });
+
+  it("updates legacy queue rows that were created before entity ids existed", () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    insertComponentRows(db, "doc-1", [{
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Acetone 67-64-1 30~60%",
+      casNoCandidate: "67-64-1",
+      chemicalNameCandidate: "Acetone",
+      contentMinCandidate: "30",
+      contentMaxCandidate: "60",
+      contentSingleCandidate: "",
+      contentText: "30~60",
+      confidence: 0.82,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review"
+    }]);
+    db.prepare("UPDATE review_queue SET entity_id = ''").run();
+
+    updateComponentReviewStatus(db, "row-1", "excluded");
+
+    expect(db.prepare("SELECT entity_id AS entityId, review_status AS reviewStatus FROM review_queue").get()).toEqual({
+      entityId: "row-1",
+      reviewStatus: "excluded"
+    });
   });
 });

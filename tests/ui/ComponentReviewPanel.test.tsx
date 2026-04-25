@@ -70,4 +70,33 @@ describe("ComponentReviewPanel", () => {
 
     expect(onRecheck).toHaveBeenCalledWith("row-1");
   });
+
+  it("lets users approve or exclude a component row", () => {
+    const onReviewStatusChange = vi.fn();
+    render(
+      <ComponentReviewPanel
+        onReviewStatusChange={onReviewStatusChange}
+        rows={[
+          {
+            rowId: "row-1",
+            casNoCandidate: "67-64-1",
+            chemicalNameCandidate: "Acetone",
+            contentText: "30~60%",
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            aiReviewStatus: "ai_candidate",
+            aiReviewNote: "CAS No., 물질명, 함유량이 같은 행에서 추출되었습니다.",
+            regulatoryMatchStatus: "api_key_required",
+            regulatoryMatches: []
+          }
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "확인" }));
+    fireEvent.click(screen.getByRole("button", { name: "제외" }));
+
+    expect(onReviewStatusChange).toHaveBeenNthCalledWith(1, "row-1", "approved");
+    expect(onReviewStatusChange).toHaveBeenNthCalledWith(2, "row-1", "excluded");
+  });
 });

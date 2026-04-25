@@ -1,4 +1,4 @@
-import type { Section3Row } from "../../shared/types";
+import type { ReviewStatus, Section3Row } from "../../shared/types";
 import { FieldRow } from "./FieldRow";
 import { StatusBadge } from "./StatusBadge";
 import { aiReviewStatusLabels, regulatoryMatchStatusLabels } from "../../shared/status";
@@ -6,10 +6,12 @@ import { aiReviewStatusLabels, regulatoryMatchStatusLabels } from "../../shared/
 interface ComponentReviewPanelProps {
   rows: Array<Pick<Section3Row, "rowId" | "casNoCandidate" | "chemicalNameCandidate" | "contentText" | "evidenceLocation" | "reviewStatus" | "aiReviewStatus" | "aiReviewNote" | "regulatoryMatchStatus" | "regulatoryMatches">>;
   onRecheck?: (rowId: string) => void;
+  onReviewStatusChange?: (rowId: string, reviewStatus: Extract<ReviewStatus, "approved" | "excluded">) => void;
   recheckingRowId?: string;
+  updatingReviewRowId?: string;
 }
 
-export function ComponentReviewPanel({ rows, onRecheck, recheckingRowId }: ComponentReviewPanelProps) {
+export function ComponentReviewPanel({ rows, onRecheck, onReviewStatusChange, recheckingRowId, updatingReviewRowId }: ComponentReviewPanelProps) {
   if (rows.length === 0) {
     return <div className="empty">성분 후보가 없습니다. 스캔본이면 OCR 또는 수동입력 큐로 보내야 합니다.</div>;
   }
@@ -45,6 +47,12 @@ export function ComponentReviewPanel({ rows, onRecheck, recheckingRowId }: Compo
               value={row.regulatoryMatchStatus ? regulatoryMatchStatusLabels[row.regulatoryMatchStatus] : "DB 미조회"}
               evidence={(row.regulatoryMatches ?? []).map((match) => `${match.sourceName}: ${match.evidenceText || match.category}`).join(" / ")}
             />
+            {row.rowId && onReviewStatusChange ? (
+              <div className="review-actions">
+                <button disabled={updatingReviewRowId === row.rowId} onClick={() => onReviewStatusChange(row.rowId!, "approved")} type="button">확인</button>
+                <button disabled={updatingReviewRowId === row.rowId} onClick={() => onReviewStatusChange(row.rowId!, "excluded")} type="button">제외</button>
+              </div>
+            ) : null}
           </article>
         ))}
       </div>

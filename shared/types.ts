@@ -74,6 +74,7 @@ export interface WatchlistItem {
 export interface ReviewQueueItem {
   queueId: string;
   documentId: string;
+  entityId?: string;
   fieldType: "document" | "component" | "regulatory" | "ocr";
   label: string;
   candidateValue: string;

@@ -281,6 +281,24 @@ input {
   opacity: 0.65;
 }
 
+.review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #edf1f5;
+}
+
+.review-actions button {
+  min-width: 64px;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #c8d3dd;
+  border-radius: 6px;
+  background: #ffffff;
+  cursor: pointer;
+}
+
 .component-item header div,
 .field-row div,
 .queue-item div {

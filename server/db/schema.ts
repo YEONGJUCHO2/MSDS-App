@@ -76,6 +76,7 @@ export function migrate(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS review_queue (
       queue_id TEXT PRIMARY KEY,
       document_id TEXT NOT NULL,
+      entity_id TEXT NOT NULL DEFAULT '',
       field_type TEXT NOT NULL,
       label TEXT NOT NULL,
       candidate_value TEXT NOT NULL,
@@ -131,6 +132,7 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, "components", "ai_review_status", "TEXT NOT NULL DEFAULT 'not_reviewed'");
   ensureColumn(db, "components", "ai_review_note", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "components", "regulatory_match_status", "TEXT NOT NULL DEFAULT 'not_checked'");
+  ensureColumn(db, "review_queue", "entity_id", "TEXT NOT NULL DEFAULT ''");
 }
 
 function ensureColumn(db: Database.Database, tableName: string, columnName: string, definition: string) {

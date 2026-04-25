@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import type { AiReviewStatus, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, Section3Row } from "../../shared/types";
+import type { AiReviewStatus, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, ReviewStatus, Section3Row } from "../../shared/types";
 import { normalizeUploadedFileName } from "../services/fileName";
 
 export function insertDocument(
@@ -47,8 +47,8 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
   `);
 
   const insertQueue = db.prepare(`
-    INSERT INTO review_queue (queue_id, document_id, field_type, label, candidate_value, evidence, review_status, created_at)
-    VALUES (@queueId, @documentId, 'component', @label, @candidateValue, @evidence, @reviewStatus, @createdAt)
+    INSERT INTO review_queue (queue_id, document_id, entity_id, field_type, label, candidate_value, evidence, review_status, created_at)
+    VALUES (@queueId, @documentId, @entityId, 'component', @label, @candidateValue, @evidence, @reviewStatus, @createdAt)
   `);
 
   const transaction = db.transaction(() => {
@@ -65,6 +65,7 @@ export function insertComponentRows(db: Database.Database, documentId: string, r
       insertQueue.run({
         queueId: nanoid(),
         documentId,
+        entityId: rowId,
         label: `${row.chemicalNameCandidate || "성분"} / ${row.casNoCandidate || "CAS 확인 필요"}`,
         candidateValue: row.contentText,
         evidence: `${row.evidenceLocation}: ${row.rawRowText}`,
@@ -104,6 +105,7 @@ export function listReviewQueue(db: Database.Database) {
     SELECT
       queue_id AS queueId,
       document_id AS documentId,
+      entity_id AS entityId,
       field_type AS fieldType,
       label,
       candidate_value AS candidateValue,
@@ -199,6 +201,50 @@ export function updateComponentAiReview(
 
 export function updateComponentRegulatoryStatus(db: Database.Database, rowId: string, status: RegulatoryMatchStatus) {
   db.prepare("UPDATE components SET regulatory_match_status = ? WHERE row_id = ?").run(status, rowId);
+}
+
+export function updateComponentReviewStatus(db: Database.Database, rowId: string, reviewStatus: ReviewStatus) {
+  const component = db.prepare(`
+    SELECT
+      row_id AS rowId,
+      document_id AS documentId,
+      raw_row_text AS rawRowText,
+      content_text AS contentText,
+      evidence_location AS evidenceLocation
+    FROM components
+    WHERE row_id = ?
+  `).get(rowId) as
+    | {
+        rowId: string;
+        documentId: string;
+        rawRowText: string;
+        contentText: string;
+        evidenceLocation: string;
+      }
+    | undefined;
+
+  const transaction = db.transaction(() => {
+    db.prepare("UPDATE components SET review_status = ? WHERE row_id = ?").run(reviewStatus, rowId);
+    db.prepare("UPDATE review_queue SET review_status = ? WHERE entity_id = ?").run(reviewStatus, rowId);
+    if (component) {
+      db.prepare(`
+        UPDATE review_queue
+        SET review_status = @reviewStatus, entity_id = @rowId
+        WHERE document_id = @documentId
+          AND field_type = 'component'
+          AND entity_id = ''
+          AND evidence = @evidence
+          AND candidate_value = @contentText
+      `).run({
+        reviewStatus,
+        rowId,
+        documentId: component.documentId,
+        evidence: `${component.evidenceLocation}: ${component.rawRowText}`,
+        contentText: component.contentText
+      });
+    }
+  });
+  transaction();
 }
 
 export function insertRegulatoryMatch(
