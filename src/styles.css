@@ -152,6 +152,22 @@ input {
   font-size: 13px;
 }
 
+.panel-title button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #c8d3dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #253241;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.panel-title button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .document-list,
 .queue-list,
 .component-list {
@@ -357,6 +373,10 @@ table {
   width: 100%;
   min-width: 980px;
   border-collapse: collapse;
+}
+
+.component-export-table {
+  min-width: 1900px;
 }
 
 th,
