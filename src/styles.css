@@ -505,6 +505,36 @@ table {
   background: #f8fafc;
 }
 
+.product-link-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(4, minmax(120px, 1fr)) auto;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d6dee6;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.product-link-form label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #536170;
+  font-size: 12px;
+}
+
+.product-link-form input,
+.product-link-form select {
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid #c8d3dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2935;
+}
+
 .component-edit-form label {
   display: grid;
   gap: 5px;
@@ -732,6 +762,10 @@ th {
   }
 
   .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .product-link-form {
     grid-template-columns: 1fr;
   }
 }

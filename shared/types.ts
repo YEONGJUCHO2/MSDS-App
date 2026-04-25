@@ -71,6 +71,8 @@ export interface ApiProviderStatus {
 
 export interface ProductSummary {
   productId: string;
+  documentId: string;
+  documentFileName: string;
   productName: string;
   supplier: string;
   manufacturer: string;

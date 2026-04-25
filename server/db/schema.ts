@@ -17,6 +17,8 @@ export function migrate(db: Database.Database) {
 
     CREATE TABLE IF NOT EXISTS products (
       product_id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL DEFAULT '',
+      document_file_name TEXT NOT NULL DEFAULT '',
       product_name TEXT NOT NULL,
       supplier TEXT NOT NULL DEFAULT '',
       manufacturer TEXT NOT NULL DEFAULT '',
@@ -133,6 +135,8 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, "components", "ai_review_note", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "components", "regulatory_match_status", "TEXT NOT NULL DEFAULT 'not_checked'");
   ensureColumn(db, "review_queue", "entity_id", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "products", "document_id", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "products", "document_file_name", "TEXT NOT NULL DEFAULT ''");
 }
 
 function ensureColumn(db: Database.Database, tableName: string, columnName: string, definition: string) {

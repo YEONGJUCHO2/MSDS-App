@@ -1,35 +1,98 @@
 import { useEffect, useState } from "react";
-import type { ProductSummary } from "../../shared/types";
+import type { DocumentSummary, ProductSummary } from "../../shared/types";
 import { api } from "../api/client";
 
 export function ProductsPage() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
+  const [documents, setDocuments] = useState<DocumentSummary[]>([]);
+  const [selectedDocumentId, setSelectedDocumentId] = useState("");
+  const [productName, setProductName] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [manufacturer, setManufacturer] = useState("");
+  const [siteNames, setSiteNames] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState("");
 
   useEffect(() => {
-    void api.products().then((result) => setProducts(result.products));
+    void Promise.all([api.products(), api.documents()]).then(([productResult, documentResult]) => {
+      setProducts(productResult.products);
+      setDocuments(documentResult.documents);
+      if (!selectedDocumentId && documentResult.documents[0]) {
+        const document = documentResult.documents[0];
+        setSelectedDocumentId(document.documentId);
+        setProductName(stripPdf(document.fileName));
+      }
+    });
   }, []);
+
+  function chooseDocument(documentId: string) {
+    setSelectedDocumentId(documentId);
+    const document = documents.find((item) => item.documentId === documentId);
+    if (document) setProductName(stripPdf(document.fileName));
+  }
+
+  async function linkProduct() {
+    if (!selectedDocumentId || !siteNames.trim() || saving) return;
+    setSaving(true);
+    setFeedback("");
+    try {
+      const result = await api.linkProductToDocument({
+        documentId: selectedDocumentId,
+        productName,
+        supplier,
+        manufacturer,
+        siteNames
+      });
+      setProducts(result.products);
+      setFeedback("MSDS와 사용현장을 연결했습니다.");
+      setSiteNames("");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "연결에 실패했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <main className="watchlist-page">
       <section className="panel">
         <div className="panel-title">
           <h2>제품/현장 관리</h2>
-          <span>{products.length}개 제품 · CSV 마스터 import API 준비됨</span>
+          <span>{products.length}개 제품 · 업로드 MSDS {documents.length}건</span>
         </div>
-        <div className="explain-flow">
-          <article>
-            <strong>1. 기존 관리대장 import</strong>
-            <span>제품명, 공급사, 제조사, 현장명을 CSV로 가져와 기본 제품/현장 마스터를 만듭니다.</span>
-          </article>
-          <article>
-            <strong>2. MSDS 연결 예정</strong>
-            <span>다음 단계에서 업로드한 MSDS의 제품명/성분/CAS를 확인 완료하면 제품 데이터와 연결합니다.</span>
-          </article>
-          <article>
-            <strong>3. 현장 매핑</strong>
-            <span>제품이 쓰이는 현장, 보관 위치, 게시본 위치를 연결해 변경 시 영향 현장을 찾습니다.</span>
-          </article>
+        <div className="product-link-form">
+          <label>
+            MSDS
+            <select value={selectedDocumentId} onChange={(event) => chooseDocument(event.target.value)}>
+              {documents.length === 0 ? <option value="">업로드된 MSDS 없음</option> : null}
+              {documents.map((document) => (
+                <option key={document.documentId} value={document.documentId}>{document.fileName}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            제품명
+            <input value={productName} onChange={(event) => setProductName(event.target.value)} />
+          </label>
+          <label>
+            사용현장
+            <input placeholder="예: 1공장, 분석실" value={siteNames} onChange={(event) => setSiteNames(event.target.value)} />
+          </label>
+          <label>
+            공급사
+            <input value={supplier} onChange={(event) => setSupplier(event.target.value)} />
+          </label>
+          <label>
+            제조사
+            <input value={manufacturer} onChange={(event) => setManufacturer(event.target.value)} />
+          </label>
+          <div className="edit-actions">
+            <button disabled={!selectedDocumentId || !siteNames.trim() || saving} onClick={() => void linkProduct()} type="button">
+              {saving ? "연결중" : "MSDS와 현장 묶기"}
+            </button>
+          </div>
         </div>
+        {feedback ? <p className="lookup-feedback compact">{feedback}</p> : null}
       </section>
 
       <section className="panel">
@@ -39,12 +102,13 @@ export function ProductsPage() {
         </div>
         <div className="watchlist-table">
           {products.length === 0 ? (
-            <div className="empty">아직 제품 마스터가 없습니다. 기존 관리대장 CSV import 또는 MSDS 확인 완료 후 제품/현장 데이터가 채워집니다.</div>
+            <div className="empty">업로드된 MSDS를 사용현장과 묶으면 제품 목록이 채워집니다.</div>
           ) : null}
           {products.map((product) => (
             <article className="watchlist-row product-row" key={product.productId}>
               <div>
                 <strong>{product.productName || "제품명 확인 필요"}</strong>
+                <span>{product.documentFileName || "MSDS 미연결"}</span>
                 <span>{product.supplier || "공급사 없음"} · {product.manufacturer || "제조사 없음"}</span>
               </div>
               <span>{product.siteNames || "현장 미연결"}</span>
@@ -55,4 +119,8 @@ export function ProductsPage() {
       </section>
     </main>
   );
+}
+
+function stripPdf(fileName: string) {
+  return fileName.replace(/\.pdf$/i, "");
 }

@@ -15,6 +15,14 @@ export type ComponentCandidatePayload = Pick<
   "casNoCandidate" | "chemicalNameCandidate" | "contentMinCandidate" | "contentMaxCandidate" | "contentSingleCandidate"
 >;
 
+export interface ProductLinkPayload {
+  documentId: string;
+  productName: string;
+  supplier: string;
+  manufacturer: string;
+  siteNames: string;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
@@ -58,6 +66,12 @@ export const api = {
       body: JSON.stringify({ watchIds })
     }),
   products: () => request<{ products: ProductSummary[] }>("/api/products"),
+  linkProductToDocument: (payload: ProductLinkPayload) =>
+    request<{ product: ProductSummary; products: ProductSummary[] }>("/api/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }),
   upload: (file: File) => {
     const form = new FormData();
     form.append("file", file);
