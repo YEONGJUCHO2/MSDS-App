@@ -82,7 +82,7 @@ describe("ProductsPage", () => {
     expect(screen.getAllByText("1공장").length).toBeGreaterThan(0);
   });
 
-  it("links multiple MSDS documents to one site and shows the site dashboard", async () => {
+  it("links multiple MSDS documents to one site and shows the site slot", async () => {
     vi.mocked(api.linkProductToDocument).mockResolvedValue({
       product: {
         productId: "product-1",
@@ -146,7 +146,13 @@ describe("ProductsPage", () => {
     expect(siteSection).not.toBeNull();
     expect(within(siteSection as HTMLElement).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
     expect(within(siteSection as HTMLElement).queryByText("cleaner-msds.pdf")).not.toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByRole("button", { name: "MSDS 등록 2건 상세 조회" })).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "1공장 현장 조회" })).toBeInTheDocument();
+
+    const productSection = screen.getByRole("heading", { name: "MSDS별 연결 현황" }).closest("section");
+    expect(productSection).not.toBeNull();
+    expect(within(productSection as HTMLElement).getByText("1공장 기준")).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).getByText(/sealant-msds\.pdf/)).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).getByText(/cleaner-msds\.pdf/)).toBeInTheDocument();
   });
 
   it("filters product links by search text and management status", async () => {
@@ -183,10 +189,12 @@ describe("ProductsPage", () => {
     render(<ProductsPage />);
 
     expect((await screen.findAllByText("1공장")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "2공장 현장 조회" }));
     fireEvent.change(screen.getByLabelText("검색"), { target: { value: "cleaner" } });
 
     const productSection = screen.getByRole("heading", { name: "MSDS별 연결 현황" }).closest("section");
     expect(productSection).not.toBeNull();
+    expect(within(productSection as HTMLElement).getByText("2공장 기준")).toBeInTheDocument();
     expect(within(productSection as HTMLElement).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
     expect(within(productSection as HTMLElement).getByText(/cleaner-msds\.pdf/)).toBeInTheDocument();
 
@@ -221,7 +229,7 @@ describe("ProductsPage", () => {
     expect(screen.getByLabelText("bulk-25.pdf")).toBeInTheDocument();
   });
 
-  it("shows site count cards and opens MSDS details in a searchable modal", async () => {
+  it("uses site slots to filter the MSDS connection list", async () => {
     vi.mocked(api.products).mockResolvedValue({
       products: [
         {
@@ -269,26 +277,22 @@ describe("ProductsPage", () => {
 
     const siteSection = (await screen.findByRole("heading", { name: "현장 관리 조회" })).closest("section");
     expect(siteSection).not.toBeNull();
-    fireEvent.change(screen.getByLabelText("현장 검색"), { target: { value: "1공장" } });
-
+    expect(within(siteSection as HTMLElement).queryByPlaceholderText("현장명으로 조회")).not.toBeInTheDocument();
     expect(within(siteSection as HTMLElement).getByRole("button", { name: "1공장 현장 조회" })).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).queryByRole("button", { name: "2공장 현장 조회" })).not.toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByRole("button", { name: "MSDS 등록 2건 상세 조회" })).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByRole("button", { name: "개정 필요 1건 상세 조회" })).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByRole("button", { name: "검수 필요 1건 상세 조회" })).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).queryByText("cleaner-msds.pdf")).not.toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "2공장 현장 조회" })).toBeInTheDocument();
 
-    fireEvent.click(within(siteSection as HTMLElement).getByRole("button", { name: "MSDS 등록 2건 상세 조회" }));
+    const productSection = screen.getByRole("heading", { name: "MSDS별 연결 현황" }).closest("section");
+    expect(productSection).not.toBeNull();
+    expect(within(productSection as HTMLElement).getByText("1공장 기준")).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).getByText(/sealant-msds\.pdf/)).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).getByText(/cleaner-msds\.pdf/)).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).queryByText(/paint-msds\.pdf/)).not.toBeInTheDocument();
 
-    const dialog = await screen.findByRole("dialog", { name: "1공장 MSDS 상세 조회" });
-    expect(within(dialog).getByText("sealant-msds.pdf")).toBeInTheDocument();
-    expect(within(dialog).getByText("cleaner-msds.pdf")).toBeInTheDocument();
-
-    fireEvent.change(within(dialog).getByLabelText("팝업 MSDS 검색"), { target: { value: "cleaner" } });
-
-    expect(within(dialog).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
-    expect(within(dialog).getByText("cleaner-msds.pdf")).toBeInTheDocument();
+    fireEvent.click(within(siteSection as HTMLElement).getByRole("button", { name: "2공장 현장 조회" }));
+    expect(within(productSection as HTMLElement).getByText("2공장 기준")).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).getByText(/paint-msds\.pdf/)).toBeInTheDocument();
+    expect(within(productSection as HTMLElement).queryByText(/sealant-msds\.pdf/)).not.toBeInTheDocument();
+    expect(within(productSection as HTMLElement).queryByText(/cleaner-msds\.pdf/)).not.toBeInTheDocument();
   });
 
   it("matches Korean search text even when uploaded file names are decomposed Unicode", async () => {

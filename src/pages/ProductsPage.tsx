@@ -2,23 +2,13 @@ import { useEffect, useState } from "react";
 import type { DocumentSummary, ProductSummary } from "../../shared/types";
 import { api } from "../api/client";
 
-type SiteDetailFilter = "all" | "revision_needed" | "needs_review";
-
-interface SiteDetailState {
-  siteName: string;
-  filter: SiteDetailFilter;
-}
-
 export function ProductsPage() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [documentSearch, setDocumentSearch] = useState("");
   const [siteNames, setSiteNames] = useState("");
-  const [siteSearch, setSiteSearch] = useState("");
   const [selectedSiteName, setSelectedSiteName] = useState("");
-  const [siteDetail, setSiteDetail] = useState<SiteDetailState | undefined>();
-  const [siteDetailSearch, setSiteDetailSearch] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [saving, setSaving] = useState(false);
@@ -73,7 +63,10 @@ export function ProductsPage() {
     }
   }
 
-  const visibleProducts = products.filter((product) => {
+  const siteGroups = groupProductsBySite(products);
+  const activeSiteGroup = siteGroups.find((group) => group.siteName === selectedSiteName) ?? siteGroups[0];
+  const selectedSiteProducts = activeSiteGroup?.items ?? [];
+  const visibleProducts = selectedSiteProducts.filter((product) => {
     const query = toSearchValue(search);
     const status = productManagementStatus(product).key;
     const searchable = [
@@ -93,25 +86,6 @@ export function ProductsPage() {
   const documentResultLabel = documentSearch.trim()
     ? `검색 결과 ${filteredDocuments.length}건`
     : `전체 ${documents.length}건`;
-  const siteGroups = groupProductsBySite(products);
-  const filteredSiteGroups = siteGroups.filter((group) => toSearchValue(group.siteName).includes(toSearchValue(siteSearch)));
-  const activeSiteGroup = filteredSiteGroups.find((group) => group.siteName === selectedSiteName) ?? filteredSiteGroups[0];
-  const activeSiteSummary = activeSiteGroup ? summarizeSiteGroup(activeSiteGroup.items) : undefined;
-  const detailSiteGroup = siteDetail ? siteGroups.find((group) => group.siteName === siteDetail.siteName) : undefined;
-  const detailTitle = siteDetail ? siteDetailTitle(siteDetail.filter) : "";
-  const detailProducts = detailSiteGroup
-    ? detailSiteGroup.items.filter((product) => {
-        const status = productManagementStatus(product).key;
-        const matchesFilter = siteDetail?.filter === "all" || status === siteDetail?.filter;
-        const searchable = [product.productName, product.documentFileName, product.supplier, product.manufacturer].join(" ");
-        return matchesFilter && toSearchValue(searchable).includes(toSearchValue(siteDetailSearch));
-      })
-    : [];
-
-  function openSiteDetail(siteName: string, filter: SiteDetailFilter) {
-    setSiteDetail({ siteName, filter });
-    setSiteDetailSearch("");
-  }
 
   return (
     <main className="watchlist-page">
@@ -164,17 +138,9 @@ export function ProductsPage() {
           <span>{siteGroups.length}개 현장</span>
         </div>
         <div className="site-lookup-controls">
-          <label>
-            현장 검색
-            <input placeholder="현장명으로 조회" value={siteSearch} onChange={(event) => setSiteSearch(event.target.value)} />
-          </label>
-        </div>
-        {filteredSiteGroups.length === 0 ? (
-          <div className="empty">제품/현장 연결을 등록하면 현장별 MSDS 관리 현황이 표시됩니다.</div>
-        ) : null}
-        <div className="site-management-layout">
+          <span className="site-lookup-label">현장 선택</span>
           <div className="site-slot-list" aria-label="현장 슬롯">
-            {filteredSiteGroups.map((group) => {
+            {siteGroups.map((group) => {
               const summary = summarizeSiteGroup(group.items);
               const active = activeSiteGroup?.siteName === group.siteName;
               return (
@@ -192,48 +158,21 @@ export function ProductsPage() {
               );
             })}
           </div>
-          {activeSiteGroup && activeSiteSummary ? (
-            <article className="site-management-card">
-              <div className="site-card-title">
-                <strong>{activeSiteGroup.siteName}</strong>
-                <span>{activeSiteSummary.total}개 MSDS 사용중</span>
-              </div>
-              <div className="site-summary-grid">
-                <button aria-label={`MSDS 등록 ${activeSiteSummary.total}건 상세 조회`} onClick={() => openSiteDetail(activeSiteGroup.siteName, "all")} type="button">
-                  <strong>MSDS 등록 {activeSiteSummary.total}건</strong>
-                  <span>전체 보기</span>
-                </button>
-                <button
-                  aria-label={`개정 필요 ${activeSiteSummary.revisionNeeded}건 상세 조회`}
-                  onClick={() => openSiteDetail(activeSiteGroup.siteName, "revision_needed")}
-                  type="button"
-                >
-                  <strong>개정 필요 {activeSiteSummary.revisionNeeded}건</strong>
-                  <span>대상 보기</span>
-                </button>
-                <button
-                  aria-label={`검수 필요 ${activeSiteSummary.needsReview}건 상세 조회`}
-                  onClick={() => openSiteDetail(activeSiteGroup.siteName, "needs_review")}
-                  type="button"
-                >
-                  <strong>검수 필요 {activeSiteSummary.needsReview}건</strong>
-                  <span>대상 보기</span>
-                </button>
-              </div>
-            </article>
-          ) : null}
         </div>
+        {siteGroups.length === 0 ? (
+          <div className="empty">제품/현장 연결을 등록하면 현장별 MSDS 관리 현황이 표시됩니다.</div>
+        ) : null}
       </section>
 
       <section className="panel">
         <div className="panel-title">
           <h2>MSDS별 연결 현황</h2>
-          <span>검색/필터</span>
+          <span>{activeSiteGroup ? `${activeSiteGroup.siteName} 기준` : "현장 선택 필요"}</span>
         </div>
         <div className="product-filters">
           <label>
             검색
-            <input placeholder="현장, 제품명, MSDS, 공급사 검색" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input placeholder="제품명, MSDS, 공급사 검색" value={search} onChange={(event) => setSearch(event.target.value)} />
           </label>
           <label>
             상태
@@ -248,7 +187,7 @@ export function ProductsPage() {
         </div>
         <div className="watchlist-table">
           {visibleProducts.length === 0 ? (
-            <div className="empty">업로드된 MSDS를 사용현장과 묶으면 제품 목록이 채워집니다.</div>
+            <div className="empty">선택한 현장에 표시할 MSDS 연결 현황이 없습니다.</div>
           ) : null}
           {visibleProducts.map((product) => {
             const status = productManagementStatus(product);
@@ -274,43 +213,6 @@ export function ProductsPage() {
           })}
         </div>
       </section>
-      {siteDetail && detailSiteGroup ? (
-        <div className="modal-backdrop">
-          <section aria-labelledby="site-detail-title" aria-modal="true" className="modal-panel" role="dialog">
-            <div className="modal-title">
-              <div>
-                <h2 id="site-detail-title">{siteDetail.siteName} MSDS 상세 조회</h2>
-                <span>{detailTitle} · {detailProducts.length}건</span>
-              </div>
-              <button aria-label="팝업 닫기" onClick={() => setSiteDetail(undefined)} type="button">닫기</button>
-            </div>
-            <label className="modal-search">
-              팝업 MSDS 검색
-              <input
-                placeholder="제품명, 파일명, 공급사 검색"
-                value={siteDetailSearch}
-                onChange={(event) => setSiteDetailSearch(event.target.value)}
-              />
-            </label>
-            <div className="modal-msds-list">
-              {detailProducts.length === 0 ? <div className="empty compact">조회된 MSDS가 없습니다.</div> : null}
-              {detailProducts.map((product) => {
-                const status = productManagementStatus(product);
-                return (
-                  <article className="modal-msds-row" key={`detail-${product.productId}`}>
-                    <div>
-                      <strong>{product.productName || "제품명 확인 필요"}</strong>
-                      <span>{product.documentFileName || "MSDS 미연결"}</span>
-                      <span>{product.supplier || "공급사 없음"} · {product.manufacturer || "제조사 없음"}</span>
-                    </div>
-                    <span className={`status-pill ${status.key}`}>{status.label}</span>
-                  </article>
-                );
-              })}
-            </div>
-          </section>
-        </div>
-      ) : null}
     </main>
   );
 }
@@ -342,12 +244,6 @@ function summarizeSiteGroup(products: ProductSummary[]) {
     },
     { total: 0, revisionNeeded: 0, needsReview: 0 }
   );
-}
-
-function siteDetailTitle(filter: SiteDetailFilter) {
-  if (filter === "revision_needed") return "개정 필요";
-  if (filter === "needs_review") return "검수 필요";
-  return "전체 MSDS";
 }
 
 function productManagementStatus(product: ProductSummary) {
