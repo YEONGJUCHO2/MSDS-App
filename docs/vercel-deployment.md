@@ -15,6 +15,20 @@ Company PC browser
   -> KECO/KOSHA official APIs
 ```
 
+## Trusted-Tester Release
+
+The first cloud MVP is for the user and a small number of trusted testers who know the Vercel URL. It does not include login, user roles, or Supabase RLS policies that allow browser access.
+
+Supabase access uses `SUPABASE_SERVICE_ROLE_KEY` only inside Vercel server functions. Never expose this value through `VITE_` variables.
+
+Before wider company rollout, add:
+
+- Supabase Auth
+- owner or organization columns
+- RLS policies
+- audit log review
+- access-controlled downloads
+
 ## Vercel Project Settings
 
 Set production secrets in Vercel. Do not expose them through `VITE_` variables.
@@ -44,6 +58,26 @@ Create:
 - A private Storage bucket for uploaded MSDS PDFs.
 - Postgres tables for documents, basic info, components, official matches, products, sites, product-site links, watchlist entries, watchlist snapshots, and review events.
 - Row Level Security policies before opening the app to more than one trusted tester.
+
+## Supabase Storage
+
+Create a private bucket:
+
+```text
+msds-documents
+```
+
+The bucket must not be public. Uploaded PDFs are sensitive business documents. Use signed URLs or server-mediated downloads when file download is added.
+
+## Supabase Schema
+
+Apply the checked-in SQL migration:
+
+```text
+supabase/migrations/20260426_cloud_mvp_foundation.sql
+```
+
+The first migration creates the upload/review tables only. Products, site assignment, watchlist snapshots, and revision comparison move after the upload/review path is stable in Supabase.
 
 ## Local Development
 
