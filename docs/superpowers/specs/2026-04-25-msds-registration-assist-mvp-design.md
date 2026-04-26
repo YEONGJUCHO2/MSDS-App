@@ -1,5 +1,13 @@
 # MSDS 관리자동화·변경감시 MVP 설계
 
+## 2026-04-26 운영 방향 변경
+
+이 문서는 2026-04-25 기준의 로컬 MVP 설계다. 이후 운영 방향은 회사 PC 접근성과 배포 안정성을 고려해 **Vercel + Supabase + OpenAI API 기반 클라우드 MVP**로 변경되었다.
+
+최신 운영 설계는 [2026-04-26 Vercel Supabase Cloud MVP Design](./2026-04-26-vercel-supabase-cloud-mvp-design.md)을 우선한다.
+
+이 문서의 Codex CLI, SQLite, 로컬 업로드, Mac mini 운영 내용은 개발/시제품 검증 경로로만 참고한다.
+
 ## 2026-04-25 제품 방향 보정
 
 이 설계의 중심은 단순한 “사내 시스템 입력 보조”가 아니다. 입력 보조는 1차 산출물이고, 최종 제품 목표는 **사업장 화학물질/MSDS 관리와 변경감시**다.

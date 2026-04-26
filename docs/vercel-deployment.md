@@ -1,84 +1,67 @@
-# Vercel Deployment
+# Vercel + Supabase Deployment
 
 ## Production Shape
 
-This app cannot run as a full SQLite + local file upload + Codex CLI backend inside Vercel Functions.
+The production MVP should not depend on the Mac mini, local SQLite, local uploads, or Codex CLI.
 
-Use Vercel for the React/Vite frontend only. Keep the API server on a persistent machine, currently the Mac mini, or move it later to a VM/container host.
+Use Vercel for the React/Vite app and Node.js API routes. Use Supabase for Postgres and PDF storage.
 
 ```text
 Company PC browser
-  -> Vercel frontend
-  -> VITE_API_BASE_URL
-  -> Mac mini Express API
-  -> SQLite + storage/uploads + official APIs + Codex CLI
+  -> Vercel frontend/API
+  -> Supabase Postgres
+  -> Supabase Storage
+  -> OpenAI API
+  -> KECO/KOSHA official APIs
 ```
 
 ## Vercel Project Settings
 
-Set this environment variable in Vercel:
+Set production secrets in Vercel. Do not expose them through `VITE_` variables.
 
 ```text
-VITE_API_BASE_URL=https://YOUR_PUBLIC_BACKEND_HOST
+OPENAI_API_KEY=...
+KECO_API_KEY=...
+KOSHA_API_KEY=...
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_STORAGE_BUCKET=msds-documents
 ```
 
-Examples:
+The frontend should call same-origin Vercel API routes in production. `VITE_API_BASE_URL` remains useful for local development or temporary external API testing, but it should not point at a Mac mini for the production MVP.
+
+## Supabase Project Settings
+
+Create:
+
+- A private Storage bucket for uploaded MSDS PDFs.
+- Postgres tables for documents, basic info, components, official matches, products, sites, product-site links, watchlist entries, watchlist snapshots, and review events.
+- Row Level Security policies before opening the app to more than one trusted tester.
+
+## Local Development
+
+Local development can continue to use the Express server and SQLite while the cloud adapters are being built.
 
 ```text
-VITE_API_BASE_URL=https://msds-api.company.example
-VITE_API_BASE_URL=https://your-cloudflare-tunnel.trycloudflare.com
+npm run dev
 ```
 
-After changing it, redeploy Vercel. Vite bakes `VITE_` values into the frontend build.
+The Mac mini path is now a development/prototype path, not the production path.
 
-## Mac Mini Backend Settings
+## Production Smoke Test
 
-Set this on the Mac mini backend process:
+After deployment, verify from a company PC:
 
-```text
-MSDS_ALLOWED_ORIGINS=https://YOUR_VERCEL_APP.vercel.app
-```
+- Vercel URL loads.
+- PDF upload succeeds.
+- PDF is stored in Supabase Storage.
+- Basic information and component rows are extracted through the OpenAI adapter.
+- KECO/KOSHA lookup updates component regulatory columns.
+- User edit/add/remove/recheck actions persist.
+- Internal input format reflects official lookup results.
+- Product/site mapping persists.
+- Watchlist manual recheck stores a new snapshot.
 
-For preview deployments, add multiple origins separated by commas:
+## Notes
 
-```text
-MSDS_ALLOWED_ORIGINS=https://YOUR_VERCEL_APP.vercel.app,https://YOUR_VERCEL_APP-git-main-YOUR_ID.vercel.app
-```
-
-Only use `MSDS_ALLOWED_ORIGINS=*` for a temporary smoke test. This API currently has no login, so a wildcard on a public backend is too open for real company use.
-
-## Backend Exposure
-
-The backend must be reachable from the company PC browser. `localhost:8787` only works on the Mac mini itself.
-
-Acceptable MVP options:
-
-- Cloudflare Tunnel to `http://localhost:8787`
-- Tailscale Funnel or VPN-only access
-- Small VM/container host running `npm run dev:server` or a production server command
-
-The backend must keep these local resources persistent:
-
-- `storage/msds.db`
-- `storage/uploads/`
-- `.env` with official API keys and Codex CLI settings
-- Codex CLI login/configuration on the host
-
-## Local Smoke Test
-
-```bash
-npm run build
-VITE_API_BASE_URL=http://localhost:8787 npm run build
-```
-
-Run the backend:
-
-```bash
-MSDS_ALLOWED_ORIGINS=http://localhost:5173 npm run dev:server
-```
-
-Check:
-
-```bash
-curl http://localhost:8787/api/health
-```
+Supabase Edge Functions are not the default backend choice for this MVP. They can be added later for small webhooks or scheduled tasks, but the first migration should keep the existing Node.js service code reusable in Vercel functions.

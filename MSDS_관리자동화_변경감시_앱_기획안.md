@@ -1,9 +1,9 @@
 ---
 title: AI 기반 MSDS 관리대장 자동화 및 변경감시 앱 기획안
-subtitle: 보건관리자·간호사 업무보조용 로컬 기반 MSDS 관리 도구
+subtitle: 보건관리자·간호사 업무보조용 클라우드 기반 MSDS 관리 도구
 created: 2026-04-23
-status: product-direction-aligned
-version: 0.2
+status: cloud-mvp-direction-aligned
+version: 0.3
 target_reader:
   - 보건관리자
   - 산업보건 담당 간호사
@@ -15,7 +15,7 @@ tags:
   - 화학물질관리
   - 보건관리
   - 업무자동화
-  - 로컬앱
+  - 클라우드앱
 ---
 
 # AI 기반 MSDS 관리대장 자동화 및 변경감시 앱 기획안
@@ -26,6 +26,23 @@ tags:
 
 이 앱은 AI가 유해화학물질 여부를 최종 판정하는 시스템이 아닙니다.  
 보건관리자와 간호사가 MSDS를 더 빠르고 정확하게 관리할 수 있도록 돕는 **확인·정리·감시·엑셀 자동화 도구**입니다.
+
+## 0.1 2026-04-26 배포 방향 결정
+
+MVP의 운영 방향은 **Vercel + Supabase 기반 클라우드 앱**으로 전환합니다.
+
+```text
+회사 PC
+→ Vercel 앱/API
+→ Supabase Postgres
+→ Supabase Storage
+→ OpenAI API 기반 문서 구조화
+→ KECO/KOSHA 공식 API 조회
+```
+
+이전의 Mac mini + SQLite + 로컬 업로드 + Codex CLI 구조는 개발/시제품 검증용으로 유지하되, 회사 PC에서 안정적으로 쓰는 운영 모델로 보지는 않습니다. 회사망에서 가정용 Mac mini, 임의 포트, 터널, VPN 접속이 차단될 가능성이 높기 때문입니다.
+
+따라서 운영 MVP는 표준 HTTPS로 접속 가능한 Vercel 앱을 기준으로 하고, MSDS PDF와 누적 관리 데이터는 Supabase에 저장합니다.
 
 ## 1.1 제품 북극성
 
