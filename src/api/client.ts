@@ -26,11 +26,17 @@ export interface ProductLinkPayload {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(resolveApiUrl(url), init);
   if (!response.ok) {
     throw new Error(await response.text());
   }
   return response.json() as Promise<T>;
+}
+
+export function resolveApiUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) return url;
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, "");
+  return apiBaseUrl ? `${apiBaseUrl}${url.startsWith("/") ? url : `/${url}`}` : url;
 }
 
 export const api = {

@@ -9,11 +9,13 @@ import { officialLookupsRouter } from "./routes/officialLookups";
 import { revisionsRouter } from "./routes/revisions";
 import { schedulesRouter } from "./routes/schedules";
 import { watchlistRouter } from "./routes/watchlist";
+import { corsMiddleware } from "./middleware/cors";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
 
 getDb();
+app.use(corsMiddleware);
 app.use(express.json({ limit: "10mb" }));
 
 app.get("/api/health", (_req, res) => {
