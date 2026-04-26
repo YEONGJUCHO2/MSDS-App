@@ -7,4 +7,5 @@ storage/uploads/*
 .env
 .env.local
 .superpowers/
+.worktrees/
 npm-debug.log*
