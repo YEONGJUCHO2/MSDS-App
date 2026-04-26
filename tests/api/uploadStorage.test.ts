@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { processUploadBatchFiles } from "../../server/routes/documents";
 import { normalizeUploadedFileName } from "../../server/services/fileName";
 
 describe("upload storage behavior", () => {
@@ -16,18 +17,7 @@ describe("upload storage behavior", () => {
       return { fileName: file.originalname, documentId: "doc-ok", status: "needs_review" };
     });
 
-    const results = [];
-    for (const file of files) {
-      try {
-        results.push({ success: true, ...(await processFile(file)) });
-      } catch (error) {
-        results.push({
-          success: false,
-          fileName: file.originalname,
-          error: error instanceof Error ? error.message : "Unknown upload error"
-        });
-      }
-    }
+    const results = await processUploadBatchFiles(files, processFile);
 
     expect(results).toEqual([
       { success: true, fileName: "ok.pdf", documentId: "doc-ok", status: "needs_review" },

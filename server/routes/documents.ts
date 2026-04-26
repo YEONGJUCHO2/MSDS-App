@@ -322,22 +322,30 @@ async function handleUploadBatch(req: Request, res: Response, next: NextFunction
       return;
     }
 
-    const results = [];
-    for (const file of files) {
-      try {
-        results.push({ success: true, ...(await processUploadedFile(file)) });
-      } catch (error) {
-        results.push({
-          success: false,
-          fileName: normalizeUploadedFileName(file.originalname),
-          error: error instanceof Error ? error.message : "Unknown upload error"
-        });
-      }
-    }
+    const results = await processUploadBatchFiles(files);
     res.json({ results });
   } catch (error) {
     next(error);
   }
+}
+
+export async function processUploadBatchFiles(
+  files: Pick<Express.Multer.File, "originalname">[],
+  processFile: (file: Express.Multer.File) => Promise<Record<string, unknown>> = processUploadedFile
+) {
+  const results = [];
+  for (const file of files) {
+    try {
+      results.push({ success: true, ...(await processFile(file as Express.Multer.File)) });
+    } catch (error) {
+      results.push({
+        success: false,
+        fileName: normalizeUploadedFileName(file.originalname),
+        error: error instanceof Error ? error.message : "Unknown upload error"
+      });
+    }
+  }
+  return results;
 }
 
 async function processUploadedFile(file: Express.Multer.File) {
