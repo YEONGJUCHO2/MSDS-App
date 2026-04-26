@@ -14,6 +14,7 @@ import {
   listDocumentBasicInfo,
   listDocuments,
   removeComponentRow,
+  upsertGeneratedDocumentBasicInfo,
   upsertDocumentBasicInfo,
   updateComponentCandidate,
   updateComponentReviewStatus
@@ -121,7 +122,7 @@ async function readDocumentBasicInfo(documentId: string) {
   const savedByKey = new Map(savedFields.map((field) => [field.key, field]));
   const fields = savedFields.length > 0
     ? extractedFields.map((field) => savedByKey.get(field.key) ?? field)
-    : await enrichBasicInfoWithAi(document.textContent, extractedFields);
+    : await enrichBasicInfoWithAi(documentId, document.textContent, extractedFields);
 
   return {
     documentId: document.documentId,
@@ -129,7 +130,7 @@ async function readDocumentBasicInfo(documentId: string) {
   };
 }
 
-async function enrichBasicInfoWithAi(textContent: string, fields: ReturnType<typeof extractDocumentBasicInfo>) {
+async function enrichBasicInfoWithAi(documentId: string, textContent: string, fields: ReturnType<typeof extractDocumentBasicInfo>) {
   const providerConfig = resolveAiProvider();
   if (providerConfig.provider === "local") return fields;
 
@@ -137,18 +138,23 @@ async function enrichBasicInfoWithAi(textContent: string, fields: ReturnType<typ
   if (!adapter) return fields;
 
   try {
+    const enrichment = adapter.enrichBasicInfo({ text: textContent, localFields: fields });
     return await withBasicInfoTimeout(
-      adapter.enrichBasicInfo({ text: textContent, localFields: fields }),
+      enrichment,
       fields,
-      Number(process.env.MSDS_AI_BASIC_INFO_TIMEOUT_MS || 5_000)
+      Number(process.env.MSDS_AI_BASIC_INFO_TIMEOUT_MS || 5_000),
+      (enrichedFields) => {
+        upsertGeneratedDocumentBasicInfo(getDb(), documentId, enrichedFields);
+      }
     );
   } catch {
     return fields;
   }
 }
 
-export async function withBasicInfoTimeout<T>(operation: Promise<T>, fallback: T, timeoutMs: number) {
+export async function withBasicInfoTimeout<T>(operation: Promise<T>, fallback: T, timeoutMs: number, onCompleted?: (value: T) => void) {
   let timeout: ReturnType<typeof setTimeout> | undefined;
+  operation.then((value) => onCompleted?.(value)).catch(() => undefined);
   try {
     return await Promise.race([
       operation,

@@ -284,6 +284,33 @@ export function upsertDocumentBasicInfo(db: Database.Database, documentId: strin
   transaction();
 }
 
+export function upsertGeneratedDocumentBasicInfo(db: Database.Database, documentId: string, fields: BasicInfoField[]) {
+  const upsert = db.prepare(`
+    INSERT INTO document_basic_info (document_id, info_key, label, value, source, updated_at)
+    VALUES (@documentId, @key, @label, @value, @source, @updatedAt)
+    ON CONFLICT(document_id, info_key) DO UPDATE SET
+      label = excluded.label,
+      value = excluded.value,
+      source = excluded.source,
+      updated_at = excluded.updated_at
+    WHERE document_basic_info.source != 'user_saved'
+  `);
+
+  const transaction = db.transaction(() => {
+    for (const field of fields) {
+      upsert.run({
+        documentId,
+        key: field.key,
+        label: field.label,
+        value: field.value.trim(),
+        source: field.value.trim() ? field.source : "manual_required",
+        updatedAt: new Date().toISOString()
+      });
+    }
+  });
+  transaction();
+}
+
 function nextComponentRowIndex(db: Database.Database, documentId: string) {
   const row = db.prepare("SELECT COALESCE(MAX(row_index), -1) + 1 AS nextIndex FROM components WHERE document_id = ?").get(documentId) as { nextIndex: number };
   return row.nextIndex;
