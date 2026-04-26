@@ -1,9 +1,10 @@
 export function normalizeUploadedFileName(fileName: string) {
-  const repaired = Buffer.from(fileName, "latin1").toString("utf8");
-  if (scoreReadableName(repaired) > scoreReadableName(fileName)) {
+  const trimmed = fileName.trim();
+  const repaired = Buffer.from(trimmed, "latin1").toString("utf8");
+  if (scoreReadableName(repaired) > scoreReadableName(trimmed)) {
     return repaired;
   }
-  return fileName;
+  return trimmed;
 }
 
 function scoreReadableName(value: string) {

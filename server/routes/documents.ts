@@ -1,7 +1,3 @@
-import crypto from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { unlink } from "node:fs/promises";
-import path from "node:path";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { nanoid } from "nanoid";
@@ -25,6 +21,7 @@ import { createConfiguredAiAdapter, resolveAiProvider } from "../services/aiProv
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
 import { recheckComponentRegulatoryData } from "../services/regulatoryMatcher";
+import { createDocumentStorage } from "../storage/documentStorage";
 import { MAX_UPLOAD_FILES_PER_BATCH } from "../../shared/uploadLimits";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -46,9 +43,7 @@ documentsRouter.delete("/:documentId", async (req, res, next) => {
       return;
     }
     if (deleted.storagePath) {
-      await unlink(deleted.storagePath).catch((error: unknown) => {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-      });
+      await createDocumentStorage().remove(deleted.storagePath);
     }
     res.json({ documentId: req.params.documentId, documents: listDocuments(getDb()) });
   } catch (error) {
@@ -269,17 +264,17 @@ documentsRouter.post("/upload", upload.single("file"), async (req, res, next) =>
     const db = getDb();
     const documentId = nanoid();
     const fileName = normalizeUploadedFileName(req.file.originalname);
-    const uploadsDir = path.resolve(process.cwd(), "storage", "uploads");
-    mkdirSync(uploadsDir, { recursive: true });
-    const storagePath = path.join(uploadsDir, `${documentId}-${fileName}`);
-    writeFileSync(storagePath, req.file.buffer);
-    const fileHash = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
+    const stored = await createDocumentStorage().save({
+      documentId,
+      fileName,
+      buffer: req.file.buffer
+    });
 
     insertDocument(db, {
       documentId,
       fileName,
-      fileHash,
-      storagePath,
+      fileHash: stored.fileHash,
+      storagePath: stored.storagePath,
       status: "uploaded"
     });
 
@@ -287,8 +282,8 @@ documentsRouter.post("/upload", upload.single("file"), async (req, res, next) =>
     const result = await processExtractedText(db, {
       documentId,
       fileName,
-      fileHash,
-      storagePath,
+      fileHash: stored.fileHash,
+      storagePath: stored.storagePath,
       text: extracted.text,
       pageCount: extracted.pageCount
     });
@@ -329,7 +324,15 @@ async function handleUploadBatch(req: Request, res: Response, next: NextFunction
 
     const results = [];
     for (const file of files) {
-      results.push(await processUploadedFile(file));
+      try {
+        results.push({ success: true, ...(await processUploadedFile(file)) });
+      } catch (error) {
+        results.push({
+          success: false,
+          fileName: normalizeUploadedFileName(file.originalname),
+          error: error instanceof Error ? error.message : "Unknown upload error"
+        });
+      }
     }
     res.json({ results });
   } catch (error) {
@@ -341,17 +344,17 @@ async function processUploadedFile(file: Express.Multer.File) {
   const db = getDb();
   const documentId = nanoid();
   const fileName = normalizeUploadedFileName(file.originalname);
-  const uploadsDir = path.resolve(process.cwd(), "storage", "uploads");
-  mkdirSync(uploadsDir, { recursive: true });
-  const storagePath = path.join(uploadsDir, `${documentId}-${fileName}`);
-  writeFileSync(storagePath, file.buffer);
-  const fileHash = crypto.createHash("sha256").update(file.buffer).digest("hex");
+  const stored = await createDocumentStorage().save({
+    documentId,
+    fileName,
+    buffer: file.buffer
+  });
 
   insertDocument(db, {
     documentId,
     fileName,
-    fileHash,
-    storagePath,
+    fileHash: stored.fileHash,
+    storagePath: stored.storagePath,
     status: "uploaded"
   });
 
@@ -359,8 +362,8 @@ async function processUploadedFile(file: Express.Multer.File) {
   const result = await processExtractedText(db, {
     documentId,
     fileName,
-    fileHash,
-    storagePath,
+    fileHash: stored.fileHash,
+    storagePath: stored.storagePath,
     text: extracted.text,
     pageCount: extracted.pageCount
   });
