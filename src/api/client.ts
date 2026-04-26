@@ -26,6 +26,20 @@ export interface ProductLinkPayload {
   siteNames: string;
 }
 
+export type UploadBatchResult =
+  | {
+      success: true;
+      fileName: string;
+      documentId: string;
+      status: string;
+      message: string;
+    }
+  | {
+      success: false;
+      fileName: string;
+      error: string;
+    };
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(resolveApiUrl(url), init);
   if (!response.ok) {
@@ -102,7 +116,7 @@ export const api = {
     for (const file of files) {
       form.append("files", file);
     }
-    return request<{ results: Array<{ fileName: string; documentId: string; status: string; message: string }> }>("/api/documents/upload-batch", {
+    return request<{ results: UploadBatchResult[] }>("/api/documents/upload-batch", {
       method: "POST",
       body: form
     });

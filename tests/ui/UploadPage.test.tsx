@@ -17,8 +17,8 @@ describe("UploadPage", () => {
     vi.mocked(api.upload).mockResolvedValue({ documentId: "doc-1", status: "needs_review", message: "업로드 완료" });
     vi.mocked(api.uploadBatch).mockResolvedValue({
       results: [
-        { fileName: "first.pdf", documentId: "doc-1", status: "needs_review", message: "업로드 완료" },
-        { fileName: "second.pdf", documentId: "doc-2", status: "needs_review", message: "업로드 완료" }
+        { success: true, fileName: "first.pdf", documentId: "doc-1", status: "needs_review", message: "업로드 완료" },
+        { success: true, fileName: "second.pdf", documentId: "doc-2", status: "needs_review", message: "업로드 완료" }
       ]
     });
   });
@@ -45,6 +45,31 @@ describe("UploadPage", () => {
     expect(api.uploadBatch).toHaveBeenCalledWith(files);
     expect(onUploaded).toHaveBeenCalledTimes(2);
     expect(screen.getByText("2개 파일 업로드 완료")).toBeInTheDocument();
+  });
+
+  it("shows failed batch files separately from successful uploads", async () => {
+    vi.mocked(api.uploadBatch).mockResolvedValue({
+      results: [
+        { success: true, fileName: "ok.pdf", documentId: "doc-ok", status: "needs_review", message: "업로드 완료" },
+        { success: false, fileName: "bad.pdf", error: "PDF text extraction failed" }
+      ]
+    });
+    const onUploaded = vi.fn();
+    render(<UploadPage onUploaded={onUploaded} />);
+    const files = [
+      new File(["ok"], "ok.pdf", { type: "application/pdf" }),
+      new File(["bad"], "bad.pdf", { type: "application/pdf" })
+    ];
+
+    fireEvent.drop(screen.getByTestId("msds-dropzone"), {
+      dataTransfer: { files }
+    });
+
+    expect(await screen.findByText("1개 파일 업로드 완료, 1개 파일 실패")).toBeInTheDocument();
+    expect(screen.getByText("ok.pdf")).toBeInTheDocument();
+    expect(screen.getByText("bad.pdf: PDF text extraction failed")).toBeInTheDocument();
+    expect(screen.queryByText("2개 파일 업로드 완료")).not.toBeInTheDocument();
+    expect(onUploaded).toHaveBeenCalledTimes(1);
   });
 
   it("rejects more than 20 files before calling the API", async () => {

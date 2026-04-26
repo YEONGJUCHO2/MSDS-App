@@ -1,31 +1,32 @@
 import { Upload } from "lucide-react";
 import { DragEvent, useState } from "react";
-import { api } from "../api/client";
+import { api, type UploadBatchResult } from "../api/client";
 import { MAX_UPLOAD_FILES_PER_BATCH } from "../../shared/uploadLimits";
 
 export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [uploadResults, setUploadResults] = useState<UploadBatchResult[]>([]);
 
   async function handleFiles(fileList: FileList | File[] | null | undefined) {
     const files = Array.from(fileList ?? []).filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
     if (files.length === 0) return;
     if (files.length > MAX_UPLOAD_FILES_PER_BATCH) {
       setMessage(`한 번에 최대 ${MAX_UPLOAD_FILES_PER_BATCH}개까지만 업로드할 수 있습니다. ${MAX_UPLOAD_FILES_PER_BATCH}개씩 나눠 올려주세요.`);
-      setUploadedFiles([]);
+      setUploadResults([]);
       return;
     }
     setBusy(true);
     setMessage("");
-    setUploadedFiles([]);
+    setUploadResults([]);
     try {
       const result = await api.uploadBatch(files);
-      const completed = result.results.map((item) => item.fileName);
-      setUploadedFiles(completed);
-      result.results.forEach(() => onUploaded());
-      setMessage(`${completed.length}개 파일 업로드 완료`);
+      const completed = result.results.filter((item) => item.success);
+      const failed = result.results.filter((item) => !item.success);
+      setUploadResults(result.results);
+      completed.forEach(() => onUploaded());
+      setMessage(formatUploadMessage(completed.length, failed.length));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "업로드 실패");
     } finally {
@@ -66,13 +67,21 @@ export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
         />
       </label>
       {message ? <p className="notice">{message}</p> : null}
-      {uploadedFiles.length > 0 ? (
+      {uploadResults.length > 0 ? (
         <ul className="upload-results">
-          {uploadedFiles.map((fileName) => (
-            <li key={fileName}>{fileName}</li>
+          {uploadResults.map((result) => (
+            <li key={result.fileName}>
+              {result.success ? result.fileName : `${result.fileName}: ${result.error}`}
+            </li>
           ))}
         </ul>
       ) : null}
     </main>
   );
+}
+
+function formatUploadMessage(completedCount: number, failedCount: number) {
+  if (failedCount === 0) return `${completedCount}개 파일 업로드 완료`;
+  if (completedCount === 0) return `${failedCount}개 파일 실패`;
+  return `${completedCount}개 파일 업로드 완료, ${failedCount}개 파일 실패`;
 }
