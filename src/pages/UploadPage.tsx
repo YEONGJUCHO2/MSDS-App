@@ -1,6 +1,7 @@
 import { Upload } from "lucide-react";
 import { DragEvent, useState } from "react";
 import { api } from "../api/client";
+import { MAX_UPLOAD_FILES_PER_BATCH } from "../../shared/uploadLimits";
 
 export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
   const [message, setMessage] = useState("");
@@ -11,17 +12,19 @@ export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
   async function handleFiles(fileList: FileList | File[] | null | undefined) {
     const files = Array.from(fileList ?? []).filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
     if (files.length === 0) return;
+    if (files.length > MAX_UPLOAD_FILES_PER_BATCH) {
+      setMessage(`한 번에 최대 ${MAX_UPLOAD_FILES_PER_BATCH}개까지만 업로드할 수 있습니다. ${MAX_UPLOAD_FILES_PER_BATCH}개씩 나눠 올려주세요.`);
+      setUploadedFiles([]);
+      return;
+    }
     setBusy(true);
     setMessage("");
     setUploadedFiles([]);
     try {
-      const completed: string[] = [];
-      for (const file of files) {
-        await api.upload(file);
-        completed.push(file.name);
-        setUploadedFiles([...completed]);
-        onUploaded();
-      }
+      const result = await api.uploadBatch(files);
+      const completed = result.results.map((item) => item.fileName);
+      setUploadedFiles(completed);
+      result.results.forEach(() => onUploaded());
       setMessage(`${completed.length}개 파일 업로드 완료`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "업로드 실패");

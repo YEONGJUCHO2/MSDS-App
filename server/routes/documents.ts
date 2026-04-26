@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
-import { Router } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/connection";
@@ -24,6 +24,7 @@ import { createConfiguredAiAdapter, resolveAiProvider } from "../services/aiProv
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
 import { recheckComponentRegulatoryData } from "../services/regulatoryMatcher";
+import { MAX_UPLOAD_FILES_PER_BATCH } from "../../shared/uploadLimits";
 
 const upload = multer({ storage: multer.memoryStorage() });
 export const documentsRouter = Router();
@@ -273,3 +274,75 @@ documentsRouter.post("/upload", upload.single("file"), async (req, res, next) =>
     next(error);
   }
 });
+
+const uploadBatchMiddleware = upload.array("files", MAX_UPLOAD_FILES_PER_BATCH);
+
+documentsRouter.post("/upload-batch", (req, res, next) => {
+  uploadBatchMiddleware(req, res, (error) => {
+    if (error instanceof multer.MulterError && error.code === "LIMIT_UNEXPECTED_FILE") {
+      res.status(400).json({ error: `한 번에 최대 ${MAX_UPLOAD_FILES_PER_BATCH}개까지만 업로드할 수 있습니다.` });
+      return;
+    }
+    if (error) {
+      next(error);
+      return;
+    }
+    void handleUploadBatch(req, res, next);
+  });
+});
+
+async function handleUploadBatch(req: Request, res: Response, next: NextFunction) {
+  try {
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length === 0) {
+      res.status(400).json({ error: "files are required" });
+      return;
+    }
+    if (files.length > MAX_UPLOAD_FILES_PER_BATCH) {
+      res.status(400).json({ error: `한 번에 최대 ${MAX_UPLOAD_FILES_PER_BATCH}개까지만 업로드할 수 있습니다.` });
+      return;
+    }
+
+    const results = [];
+    for (const file of files) {
+      results.push(await processUploadedFile(file));
+    }
+    res.json({ results });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function processUploadedFile(file: Express.Multer.File) {
+  const db = getDb();
+  const documentId = nanoid();
+  const fileName = normalizeUploadedFileName(file.originalname);
+  const uploadsDir = path.resolve(process.cwd(), "storage", "uploads");
+  mkdirSync(uploadsDir, { recursive: true });
+  const storagePath = path.join(uploadsDir, `${documentId}-${fileName}`);
+  writeFileSync(storagePath, file.buffer);
+  const fileHash = crypto.createHash("sha256").update(file.buffer).digest("hex");
+
+  insertDocument(db, {
+    documentId,
+    fileName,
+    fileHash,
+    storagePath,
+    status: "uploaded"
+  });
+
+  const extracted = await extractPdfText(file.buffer);
+  const result = await processExtractedText(db, {
+    documentId,
+    fileName,
+    fileHash,
+    storagePath,
+    text: extracted.text,
+    pageCount: extracted.pageCount
+  });
+
+  return {
+    fileName,
+    ...result
+  };
+}

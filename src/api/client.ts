@@ -93,5 +93,15 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     return request<{ documentId: string; status: string; message: string }>("/api/documents/upload", { method: "POST", body: form });
+  },
+  uploadBatch: (files: File[]) => {
+    const form = new FormData();
+    for (const file of files) {
+      form.append("files", file);
+    }
+    return request<{ results: Array<{ fileName: string; documentId: string; status: string; message: string }> }>("/api/documents/upload-batch", {
+      method: "POST",
+      body: form
+    });
   }
 };

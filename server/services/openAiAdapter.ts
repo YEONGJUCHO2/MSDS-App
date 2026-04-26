@@ -1,5 +1,11 @@
 import { registrationCandidateSchema, type RegistrationCandidate } from "../domain/registrationSchema";
 import type { BasicInfoField, Section3Row } from "../../shared/types";
+import {
+  enforcePromptLimit,
+  getDefaultAiUsageGuard,
+  readAiUsageLimitConfig,
+  type AiUsageLimitConfig
+} from "./aiUsageGuard";
 
 export interface OpenAiExtractionInput {
   text: string;
@@ -17,6 +23,8 @@ interface OpenAiAdapterOptions {
   baseUrl?: string;
   timeoutMs?: number;
   fetcher?: typeof fetch;
+  usageGuard?: ReturnType<typeof getDefaultAiUsageGuard>;
+  limits?: AiUsageLimitConfig;
 }
 
 export function createOpenAiAdapter(options: OpenAiAdapterOptions) {
@@ -85,6 +93,12 @@ export function mergeBasicInfoWithOpenAi(localFields: BasicInfoField[], candidat
 }
 
 async function requestRegistrationCandidate(options: OpenAiAdapterOptions, prompt: string) {
+  const limits = options.limits ?? readAiUsageLimitConfig();
+  const usageDecision = (options.usageGuard ?? getDefaultAiUsageGuard()).checkAndRecord();
+  if (!usageDecision.allowed) {
+    throw new Error(usageDecision.reason);
+  }
+
   const response = await runOpenAiResponse(options, {
     model: options.model?.trim() || "gpt-5-mini",
     input: [
@@ -94,7 +108,7 @@ async function requestRegistrationCandidate(options: OpenAiAdapterOptions, promp
       },
       {
         role: "user",
-        content: prompt
+        content: enforcePromptLimit(prompt, limits.maxPromptChars)
       }
     ],
     text: {
@@ -105,7 +119,7 @@ async function requestRegistrationCandidate(options: OpenAiAdapterOptions, promp
         schema: registrationCandidateJsonSchema
       }
     },
-    max_output_tokens: 4000
+    max_output_tokens: limits.maxOutputTokens
   });
 
   return registrationCandidateSchema.parse(parseAiJsonObject(extractOutputText(response)));
