@@ -9,3 +9,4 @@ storage/uploads/*
 .superpowers/
 .worktrees/
 npm-debug.log*
+.vercel
