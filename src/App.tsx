@@ -36,6 +36,16 @@ export default function App() {
     void refresh();
   }, []);
 
+  async function handleDeleteDocument(documentId: string) {
+    const document = documents.find((item) => item.documentId === documentId);
+    const label = document?.fileName ?? "선택한 MSDS";
+    if (!window.confirm(`${label} 문서를 삭제할까요? 성분, 검수 큐, 기본정보, 업로드 파일이 함께 삭제됩니다.`)) return;
+    const result = await api.deleteDocument(documentId);
+    setDocuments(result.documents);
+    const queueResult = await api.queues();
+    setQueueItems(queueResult.items);
+  }
+
   return (
     <div className="app-shell" data-testid="app-shell">
       <nav className="app-nav" data-testid="app-nav">
@@ -51,9 +61,9 @@ export default function App() {
         ))}
       </nav>
       <div className="content" data-testid="app-content">
-        {page === "dashboard" ? <DashboardPage documents={documents} queueItems={queueItems} onNavigate={setPage} /> : null}
+        {page === "dashboard" ? <DashboardPage documents={documents} queueItems={queueItems} onDeleteDocument={(documentId) => void handleDeleteDocument(documentId)} onNavigate={setPage} /> : null}
         {page === "upload" ? <UploadPage onUploaded={() => void refresh()} /> : null}
-        {page === "review" ? <ReviewPage documents={documents} /> : null}
+        {page === "review" ? <ReviewPage documents={documents} onDeleteDocument={(documentId) => void handleDeleteDocument(documentId)} /> : null}
         {page === "queues" ? <QueuesPage items={queueItems} /> : null}
         {page === "products" ? <ProductsPage /> : null}
         {page === "revisions" ? <RevisionDiffPage /> : null}

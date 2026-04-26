@@ -4,10 +4,11 @@ import type { DocumentSummary, ReviewQueueItem } from "../../shared/types";
 interface DashboardPageProps {
   documents: DocumentSummary[];
   queueItems: ReviewQueueItem[];
+  onDeleteDocument: (documentId: string) => void;
   onNavigate: (page: string) => void;
 }
 
-export function DashboardPage({ documents, queueItems, onNavigate }: DashboardPageProps) {
+export function DashboardPage({ documents, queueItems, onDeleteDocument, onNavigate }: DashboardPageProps) {
   const pendingAttentionCount = queueItems.filter((item) => item.reviewStatus === "needs_review").length;
   const componentCount = documents.reduce((sum, doc) => sum + doc.componentCount, 0);
   const revisionNeededCount = 0;
@@ -39,7 +40,10 @@ export function DashboardPage({ documents, queueItems, onNavigate }: DashboardPa
                 <strong>{document.fileName}</strong>
                 <span>{document.uploadedAt.slice(0, 10)} · 화학물질 {document.componentCount} · 검수 {document.queueCount}</span>
               </div>
-              <code>{displayDocumentState(document)}</code>
+              <div className="document-row-actions">
+                <code>{displayDocumentState(document)}</code>
+                <button aria-label={`${document.fileName} 삭제`} onClick={() => onDeleteDocument(document.documentId)} type="button">삭제</button>
+              </div>
             </div>
           ))}
         </div>

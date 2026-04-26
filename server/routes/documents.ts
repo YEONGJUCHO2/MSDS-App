@@ -1,11 +1,13 @@
 import crypto from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/connection";
 import {
+  deleteDocumentRecord,
   insertDocument,
   insertManualComponentRow,
   listComponentRows,
@@ -32,6 +34,24 @@ documentsRouter.get("/", (_req, res) => {
 
 documentsRouter.get("/:documentId/components", (req, res) => {
   res.json({ rows: listComponentRows(getDb(), req.params.documentId) });
+});
+
+documentsRouter.delete("/:documentId", async (req, res, next) => {
+  try {
+    const deleted = deleteDocumentRecord(getDb(), req.params.documentId);
+    if (!deleted) {
+      res.status(404).json({ error: "document not found" });
+      return;
+    }
+    if (deleted.storagePath) {
+      await unlink(deleted.storagePath).catch((error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      });
+    }
+    res.json({ documentId: req.params.documentId, documents: listDocuments(getDb()) });
+  } catch (error) {
+    next(error);
+  }
 });
 
 documentsRouter.get("/:documentId/basic-info", async (req, res, next) => {

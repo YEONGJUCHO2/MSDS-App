@@ -6,7 +6,7 @@ import { BasicInfoPanel } from "../components/BasicInfoPanel";
 import { ComponentReviewPanel } from "../components/ComponentReviewPanel";
 import { ComponentTable } from "../components/ComponentTable";
 
-export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
+export function ReviewPage({ documents, onDeleteDocument }: { documents: DocumentSummary[]; onDeleteDocument: (documentId: string) => void }) {
   const [selectedId, setSelectedId] = useState(documents[0]?.documentId ?? "");
   const [rows, setRows] = useState<Section3Row[]>([]);
   const [basicInfoFields, setBasicInfoFields] = useState<BasicInfoField[]>([]);
@@ -22,6 +22,12 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
   }, [selectedId]);
 
   useEffect(() => {
+    if (selectedId && !documents.some((document) => document.documentId === selectedId)) {
+      setSelectedId(documents[0]?.documentId ?? "");
+      setRows([]);
+      setBasicInfoFields([]);
+      return;
+    }
     if (!selectedId && documents[0]?.documentId) {
       setSelectedId(documents[0].documentId);
     }
@@ -79,10 +85,13 @@ export function ReviewPage({ documents }: { documents: DocumentSummary[] }) {
     <main className="review-layout">
       <aside className="sidebar-list">
         {documents.map((document) => (
-          <button className={selectedId === document.documentId ? "selected" : ""} key={document.documentId} onClick={() => setSelectedId(document.documentId)} type="button">
-            <strong>{document.fileName}</strong>
-            <span>{processingStatusLabels[document.status]}</span>
-          </button>
+          <div className={`sidebar-document ${selectedId === document.documentId ? "selected" : ""}`} key={document.documentId}>
+            <button onClick={() => setSelectedId(document.documentId)} type="button">
+              <strong>{document.fileName}</strong>
+              <span>{processingStatusLabels[document.status]}</span>
+            </button>
+            <button aria-label={`${document.fileName} 삭제`} className="sidebar-delete" onClick={() => onDeleteDocument(document.documentId)} type="button">삭제</button>
+          </div>
         ))}
       </aside>
       <div className="review-main">

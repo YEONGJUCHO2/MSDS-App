@@ -198,6 +198,24 @@ input {
   align-items: center;
 }
 
+.document-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-row-actions button,
+.sidebar-delete {
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #d6a9a9;
+  border-radius: 6px;
+  background: #fff7f7;
+  color: #8b2f2f;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .upload-page {
   max-width: none;
 }
@@ -255,7 +273,7 @@ input {
   min-width: 0;
 }
 
-.sidebar-list button {
+.sidebar-document {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -263,17 +281,31 @@ input {
   border: 1px solid #d6dee6;
   border-radius: 6px;
   background: #ffffff;
+}
+
+.sidebar-document > button:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   text-align: left;
   cursor: pointer;
 }
 
-.sidebar-list button strong {
+.sidebar-document button strong {
   overflow-wrap: anywhere;
 }
 
-.sidebar-list button.selected {
+.sidebar-document.selected {
   border-color: #2f6f9f;
   box-shadow: 0 0 0 2px #d7eafa;
+}
+
+.sidebar-delete {
+  justify-self: start;
+  margin-top: 4px;
 }
 
 .review-main {

@@ -167,6 +167,30 @@ export function removeComponentRow(db: Database.Database, rowId: string) {
   transaction();
 }
 
+export function deleteDocumentRecord(db: Database.Database, documentId: string) {
+  const document = db.prepare("SELECT storage_path AS storagePath FROM documents WHERE document_id = ?").get(documentId) as { storagePath: string } | undefined;
+  if (!document) return undefined;
+
+  const transaction = db.transaction(() => {
+    db.prepare(`
+      UPDATE products
+      SET
+        document_id = '',
+        document_file_name = '',
+        registration_status = 'not_registered'
+      WHERE document_id = ?
+    `).run(documentId);
+    db.prepare("DELETE FROM document_basic_info WHERE document_id = ?").run(documentId);
+    db.prepare("DELETE FROM regulatory_matches WHERE document_id = ?").run(documentId);
+    db.prepare("DELETE FROM review_queue WHERE document_id = ?").run(documentId);
+    db.prepare("DELETE FROM components WHERE document_id = ?").run(documentId);
+    db.prepare("DELETE FROM documents WHERE document_id = ?").run(documentId);
+  });
+  transaction();
+
+  return document;
+}
+
 export function listDocuments(db: Database.Database): DocumentSummary[] {
   const rows = db.prepare(`
     SELECT

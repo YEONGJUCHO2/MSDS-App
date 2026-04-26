@@ -6,6 +6,7 @@ import type { DocumentSummary, ReviewQueueItem } from "../../shared/types";
 describe("DashboardPage", () => {
   it("frames pending work as human attention needed for chemical management", () => {
     const onNavigate = vi.fn();
+    const onDeleteDocument = vi.fn();
     const documents: DocumentSummary[] = [
       {
         documentId: "doc-1",
@@ -47,7 +48,7 @@ describe("DashboardPage", () => {
       }
     ];
 
-    render(<DashboardPage documents={documents} queueItems={queueItems} onNavigate={onNavigate} />);
+    render(<DashboardPage documents={documents} queueItems={queueItems} onDeleteDocument={onDeleteDocument} onNavigate={onNavigate} />);
 
     expect(screen.getAllByText("검수 필요").length).toBeGreaterThan(0);
     expect(screen.queryByText("검수필요")).not.toBeInTheDocument();
@@ -64,5 +65,8 @@ describe("DashboardPage", () => {
     expect(onNavigate).toHaveBeenCalledWith("queues");
     fireEvent.click(screen.getByRole("button", { name: "개정 필요0" }));
     expect(onNavigate).toHaveBeenCalledWith("revisions");
+
+    fireEvent.click(screen.getByRole("button", { name: "sample.pdf 삭제" }));
+    expect(onDeleteDocument).toHaveBeenCalledWith("doc-1");
   });
 });

@@ -35,6 +35,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   documents: () => request<{ documents: DocumentSummary[] }>("/api/documents"),
+  deleteDocument: (documentId: string) =>
+    request<{ documentId: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}`, { method: "DELETE" }),
   documentBasicInfo: (documentId: string) => request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`),
   saveDocumentBasicInfo: (documentId: string, fields: BasicInfoField[]) =>
     request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`, {
