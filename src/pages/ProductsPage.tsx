@@ -2,14 +2,19 @@ import { useEffect, useState } from "react";
 import type { DocumentSummary, ProductSummary } from "../../shared/types";
 import { api } from "../api/client";
 
+const DOCUMENT_PICKER_LIMIT = 8;
+
 export function ProductsPage() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
+  const [documentSearch, setDocumentSearch] = useState("");
   const [productName, setProductName] = useState("");
   const [supplier, setSupplier] = useState("");
   const [manufacturer, setManufacturer] = useState("");
   const [siteNames, setSiteNames] = useState("");
+  const [siteSearch, setSiteSearch] = useState("");
+  const [selectedSiteName, setSelectedSiteName] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [saving, setSaving] = useState(false);
@@ -27,11 +32,23 @@ export function ProductsPage() {
     });
   }, []);
 
-  function toggleDocument(documentId: string) {
+  function addDocument(documentId: string) {
     setSelectedDocumentIds((current) => {
-      const next = current.includes(documentId)
-        ? current.filter((id) => id !== documentId)
-        : [...current, documentId];
+      if (current.includes(documentId)) return current;
+      const next = [...current, documentId];
+      if (next.length === 1) {
+        const document = documents.find((item) => item.documentId === next[0]);
+        setProductName(document ? stripPdf(document.fileName) : "");
+      } else {
+        setProductName("");
+      }
+      return next;
+    });
+  }
+
+  function removeDocument(documentId: string) {
+    setSelectedDocumentIds((current) => {
+      const next = current.filter((id) => id !== documentId);
       if (next.length === 1) {
         const document = documents.find((item) => item.documentId === next[0]);
         setProductName(document ? stripPdf(document.fileName) : "");
@@ -91,7 +108,20 @@ export function ProductsPage() {
     const searchTarget = toSearchValue(searchable);
     return (!query || searchTarget.includes(query)) && (statusFilter === "all" || statusFilter === status);
   });
-  const siteGroups = groupProductsBySite(visibleProducts);
+  const selectedDocuments = selectedDocumentIds
+    .map((documentId) => documents.find((document) => document.documentId === documentId))
+    .filter((document): document is DocumentSummary => Boolean(document));
+  const filteredDocuments = documents.filter((document) => toSearchValue(document.fileName).includes(toSearchValue(documentSearch)));
+  const visibleDocumentResults = filteredDocuments.slice(0, DOCUMENT_PICKER_LIMIT);
+  const documentResultLabel = documentSearch.trim()
+    ? filteredDocuments.length > DOCUMENT_PICKER_LIMIT
+      ? `검색 결과 ${filteredDocuments.length}건 중 ${visibleDocumentResults.length}건 표시`
+      : `검색 결과 ${filteredDocuments.length}건`
+    : `전체 ${documents.length}건 중 ${visibleDocumentResults.length}건 표시`;
+  const siteGroups = groupProductsBySite(products);
+  const filteredSiteGroups = siteGroups.filter((group) => toSearchValue(group.siteName).includes(toSearchValue(siteSearch)));
+  const activeSiteGroup = filteredSiteGroups.find((group) => group.siteName === selectedSiteName) ?? filteredSiteGroups[0];
+  const activeSiteSummary = activeSiteGroup ? summarizeSiteGroup(activeSiteGroup.items) : undefined;
 
   return (
     <main className="watchlist-page">
@@ -101,40 +131,65 @@ export function ProductsPage() {
           <span>{products.length}개 제품 · 업로드 MSDS {documents.length}건</span>
         </div>
         <div className="product-link-form">
-          <fieldset className="document-picker">
-            <legend>MSDS 선택</legend>
-            {documents.length === 0 ? <span>업로드된 MSDS 없음</span> : null}
-            {documents.map((document) => (
-              <label key={document.documentId}>
-                <input
-                  checked={selectedDocumentIds.includes(document.documentId)}
-                  onChange={() => toggleDocument(document.documentId)}
-                  type="checkbox"
-                />
-                {document.fileName}
-              </label>
-            ))}
-          </fieldset>
-          <label>
-            제품명
-            <input value={productName} onChange={(event) => setProductName(event.target.value)} />
-          </label>
-          <label>
-            사용현장
-            <input placeholder="예: 1공장, 분석실" value={siteNames} onChange={(event) => setSiteNames(event.target.value)} />
-          </label>
-          <label>
-            공급사
-            <input value={supplier} onChange={(event) => setSupplier(event.target.value)} />
-          </label>
-          <label>
-            제조사
-            <input value={manufacturer} onChange={(event) => setManufacturer(event.target.value)} />
-          </label>
-          <div className="edit-actions">
-            <button disabled={selectedDocumentIds.length === 0 || !siteNames.trim() || saving} onClick={() => void linkProduct()} type="button">
-              {saving ? "연결중" : "선택 MSDS를 현장에 묶기"}
-            </button>
+          <div className="document-picker-panel">
+            <label>
+              MSDS 검색
+              <input placeholder="파일명으로 검색" value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} />
+            </label>
+            <div className="document-picker-meta">{documents.length === 0 ? "업로드된 MSDS 없음" : documentResultLabel}</div>
+            <div className="document-result-list">
+              {visibleDocumentResults.map((document) => {
+                const selected = selectedDocumentIds.includes(document.documentId);
+                return (
+                  <div className="document-result-row" key={document.documentId}>
+                    <span>{document.fileName}</span>
+                    <button
+                      aria-label={`${document.fileName} ${selected ? "선택됨" : "추가"}`}
+                      disabled={selected}
+                      onClick={() => addDocument(document.documentId)}
+                      type="button"
+                    >
+                      {selected ? "선택됨" : "추가"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="selected-document-slots" aria-label="선택된 MSDS">
+              <strong>선택된 MSDS {selectedDocuments.length}건</strong>
+              {selectedDocuments.length === 0 ? <span>현장에 묶을 MSDS를 검색해서 추가하세요.</span> : null}
+              {selectedDocuments.map((document) => (
+                <span className="selected-document-chip" key={document.documentId}>
+                  {document.fileName}
+                  <button aria-label={`${document.fileName} 선택 해제`} onClick={() => removeDocument(document.documentId)} type="button">
+                    해제
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="product-link-details">
+            <label className="wide-field">
+              제품명
+              <input value={productName} onChange={(event) => setProductName(event.target.value)} />
+            </label>
+            <label>
+              사용현장
+              <input placeholder="예: 1공장, 분석실" value={siteNames} onChange={(event) => setSiteNames(event.target.value)} />
+            </label>
+            <label>
+              공급사
+              <input value={supplier} onChange={(event) => setSupplier(event.target.value)} />
+            </label>
+            <label>
+              제조사
+              <input value={manufacturer} onChange={(event) => setManufacturer(event.target.value)} />
+            </label>
+            <div className="edit-actions wide-field">
+              <button disabled={selectedDocumentIds.length === 0 || !siteNames.trim() || saving} onClick={() => void linkProduct()} type="button">
+                {saving ? "연결중" : "선택 MSDS를 현장에 묶기"}
+              </button>
+            </div>
           </div>
         </div>
         {feedback ? <p className="lookup-feedback compact">{feedback}</p> : null}
@@ -142,21 +197,51 @@ export function ProductsPage() {
 
       <section className="panel">
         <div className="panel-title">
-          <h2>현장별 사용 MSDS</h2>
+          <h2>현장 관리 조회</h2>
           <span>{siteGroups.length}개 현장</span>
         </div>
-        {siteGroups.length === 0 ? (
-          <div className="empty">업로드된 MSDS를 사용현장과 묶으면 현장별 사용 현황이 표시됩니다.</div>
+        <div className="site-lookup-controls">
+          <label>
+            현장 검색
+            <input placeholder="현장명으로 조회" value={siteSearch} onChange={(event) => setSiteSearch(event.target.value)} />
+          </label>
+        </div>
+        {filteredSiteGroups.length === 0 ? (
+          <div className="empty">제품/현장 연결을 등록하면 현장별 MSDS 관리 현황이 표시됩니다.</div>
         ) : null}
-        <div className="site-dashboard">
-          {siteGroups.map((group) => (
-            <article className="site-card" key={group.siteName}>
+        <div className="site-management-layout">
+          <div className="site-slot-list" aria-label="현장 슬롯">
+            {filteredSiteGroups.map((group) => {
+              const summary = summarizeSiteGroup(group.items);
+              const active = activeSiteGroup?.siteName === group.siteName;
+              return (
+                <button
+                  aria-label={`${group.siteName} 현장 조회`}
+                  className={active ? "site-slot active" : "site-slot"}
+                  key={group.siteName}
+                  onClick={() => setSelectedSiteName(group.siteName)}
+                  type="button"
+                >
+                  <strong>{group.siteName}</strong>
+                  <span>MSDS {summary.total}건</span>
+                  <span>개정 {summary.revisionNeeded} · 검수 {summary.needsReview}</span>
+                </button>
+              );
+            })}
+          </div>
+          {activeSiteGroup && activeSiteSummary ? (
+            <article className="site-management-card">
               <div className="site-card-title">
-                <strong>{group.siteName}</strong>
-                <span>{group.items.length}개 MSDS 사용중</span>
+                <strong>{activeSiteGroup.siteName}</strong>
+                <span>{activeSiteSummary.total}개 MSDS 사용중</span>
+              </div>
+              <div className="site-summary-grid">
+                <strong>MSDS 등록 {activeSiteSummary.total}건</strong>
+                <strong>개정 필요 {activeSiteSummary.revisionNeeded}건</strong>
+                <strong>검수 필요 {activeSiteSummary.needsReview}건</strong>
               </div>
               <div className="watchlist-table">
-                {group.items.map((product) => {
+                {activeSiteGroup.items.map((product) => {
                   const status = productManagementStatus(product);
                   return (
                     <div className="site-msds-row" key={`site-${product.productId}`}>
@@ -170,7 +255,7 @@ export function ProductsPage() {
                 })}
               </div>
             </article>
-          ))}
+          ) : null}
         </div>
       </section>
 
@@ -244,6 +329,20 @@ function groupProductsBySite(products: ProductSummary[]) {
     }
   }
   return Array.from(groups.entries()).map(([siteName, items]) => ({ siteName, items }));
+}
+
+function summarizeSiteGroup(products: ProductSummary[]) {
+  return products.reduce(
+    (summary, product) => {
+      const status = productManagementStatus(product).key;
+      return {
+        total: summary.total + 1,
+        revisionNeeded: summary.revisionNeeded + (status === "revision_needed" ? 1 : 0),
+        needsReview: summary.needsReview + (status === "needs_review" ? 1 : 0)
+      };
+    },
+    { total: 0, revisionNeeded: 0, needsReview: 0 }
+  );
 }
 
 function productManagementStatus(product: ProductSummary) {

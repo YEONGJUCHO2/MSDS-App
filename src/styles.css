@@ -612,34 +612,44 @@ table {
 
 .product-link-form {
   display: grid;
-  grid-template-columns: minmax(220px, 1.35fr) repeat(4, minmax(120px, 1fr)) auto;
-  align-items: end;
-  gap: 10px;
+  grid-template-columns: minmax(320px, 0.95fr) minmax(0, 1.35fr);
+  align-items: start;
+  gap: 12px;
   padding: 12px;
   border: 1px solid #d6dee6;
   border-radius: 8px;
   background: #f8fafc;
 }
 
-.document-picker {
+.document-picker-panel {
   display: grid;
-  align-content: start;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  max-height: 150px;
-  margin: 0;
   padding: 10px;
   border: 1px solid #c8d3dd;
   border-radius: 6px;
   background: #ffffff;
-  overflow: auto;
 }
 
-.document-picker legend {
-  padding: 0 4px;
+.product-link-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d6dee6;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.product-link-details .wide-field {
+  grid-column: 1 / -1;
+}
+
+.document-picker-meta {
   color: #536170;
   font-size: 12px;
-  font-weight: 700;
 }
 
 .product-link-form label {
@@ -650,17 +660,78 @@ table {
   font-size: 12px;
 }
 
-.document-picker label {
-  display: flex;
+.document-result-list,
+.selected-document-slots {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.document-result-list {
+  max-height: 210px;
+  overflow: auto;
+}
+
+.document-result-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  min-height: 28px;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #e2e8ef;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.document-result-row span {
   overflow-wrap: anywhere;
 }
 
-.document-picker input {
-  flex: 0 0 auto;
-  min-height: auto;
+.document-result-row button,
+.selected-document-chip button {
+  min-height: 26px;
+  padding: 3px 8px;
+  border: 1px solid #c8d3dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #253241;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.document-result-row button:disabled {
+  color: #647382;
+  background: #edf1f5;
+  cursor: default;
+}
+
+.selected-document-slots {
+  padding-top: 4px;
+  border-top: 1px solid #edf1f5;
+}
+
+.selected-document-slots > strong {
+  font-size: 12px;
+}
+
+.selected-document-slots > span:not(.selected-document-chip) {
+  color: #647382;
+  font-size: 12px;
+}
+
+.selected-document-chip {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  min-width: 0;
+  padding: 5px 7px;
+  border: 1px solid #d6dee6;
+  border-radius: 6px;
+  background: #eef6fb;
+  overflow-wrap: anywhere;
 }
 
 .product-link-form input,
@@ -796,13 +867,65 @@ th {
   gap: 16px;
 }
 
-.site-dashboard {
+.site-management-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
   gap: 12px;
 }
 
-.site-card {
+.site-lookup-controls {
+  margin-bottom: 12px;
+}
+
+.site-lookup-controls label {
+  display: grid;
+  gap: 5px;
+  max-width: 420px;
+  color: #536170;
+  font-size: 12px;
+}
+
+.site-lookup-controls input {
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid #c8d3dd;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1f2935;
+}
+
+.site-slot-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+}
+
+.site-slot {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #d6dee6;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #253241;
+  cursor: pointer;
+  text-align: left;
+}
+
+.site-slot.active,
+.site-slot:hover {
+  border-color: #2f6f9f;
+  box-shadow: 0 0 0 2px #d7eafa;
+}
+
+.site-slot span {
+  color: #647382;
+  font-size: 12px;
+}
+
+.site-management-card {
   display: grid;
   gap: 10px;
   min-width: 0;
@@ -810,6 +933,21 @@ th {
   border: 1px solid #d6dee6;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.site-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.site-summary-grid strong {
+  min-height: 42px;
+  padding: 10px;
+  border: 1px solid #e2e8ef;
+  border-radius: 6px;
+  background: #f8fafc;
+  font-size: 13px;
 }
 
 .site-card-title,
@@ -1026,6 +1164,12 @@ th {
   }
 
   .product-link-form {
+    grid-template-columns: 1fr;
+  }
+
+  .product-link-details,
+  .site-management-layout,
+  .site-summary-grid {
     grid-template-columns: 1fr;
   }
 
