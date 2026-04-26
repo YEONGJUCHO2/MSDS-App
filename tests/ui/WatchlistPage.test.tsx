@@ -65,6 +65,7 @@ describe("WatchlistPage", () => {
     expect(await screen.findByText("67-64-1")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "전체 재조회" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "선택 재조회" })).toBeDisabled();
+    expect(screen.getByText("성공 조회 캐시는 30일, 실패·timeout 캐시는 1일 유지됩니다. 재조회 버튼은 캐시를 우회해 공식 API를 다시 호출합니다.")).toBeInTheDocument();
     expect(screen.getAllByText(/최근 재조회/).length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByLabelText("선택"));

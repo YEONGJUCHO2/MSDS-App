@@ -738,6 +738,11 @@ th {
   opacity: 0.65;
 }
 
+.table-action.danger {
+  border-color: #e2b8b8;
+  color: #9b2f2f;
+}
+
 .queue-item {
   grid-template-columns: 1fr minmax(120px, auto) auto;
   align-items: center;

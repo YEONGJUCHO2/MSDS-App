@@ -5,6 +5,7 @@ import { ProductsPage } from "../../src/pages/ProductsPage";
 vi.mock("../../src/api/client", () => ({
   api: {
     documents: vi.fn(),
+    deleteProduct: vi.fn(),
     linkProductToDocument: vi.fn(),
     products: vi.fn()
   }
@@ -27,6 +28,7 @@ describe("ProductsPage", () => {
       ]
     });
     vi.mocked(api.products).mockResolvedValue({ products: [] });
+    vi.mocked(api.deleteProduct).mockResolvedValue({ products: [] });
     vi.mocked(api.linkProductToDocument).mockResolvedValue({
       product: {
         productId: "product-1",
@@ -69,5 +71,30 @@ describe("ProductsPage", () => {
     }));
     expect(await screen.findByText("MSDS와 사용현장을 연결했습니다.")).toBeInTheDocument();
     expect(screen.getByText("1공장")).toBeInTheDocument();
+  });
+
+  it("deletes a linked product/site record from the management list", async () => {
+    vi.mocked(api.products).mockResolvedValue({
+      products: [
+        {
+          productId: "product-1",
+          documentId: "doc-1",
+          documentFileName: "sealant-msds.pdf",
+          productName: "sealant-msds",
+          supplier: "공급사",
+          manufacturer: "제조사",
+          siteNames: "1공장",
+          registrationStatus: "linked_to_site"
+        }
+      ]
+    });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<ProductsPage />);
+
+    expect(await screen.findByText("1공장")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "sealant-msds 제품 삭제" }));
+
+    await waitFor(() => expect(api.deleteProduct).toHaveBeenCalledWith("product-1"));
+    expect(await screen.findByText("제품/현장 연결을 삭제했습니다.")).toBeInTheDocument();
   });
 });

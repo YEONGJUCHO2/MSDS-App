@@ -99,6 +99,30 @@ describe("component export format", () => {
     expect(values[15]).toBe("Y");
     expect(values[17]).toBe("Y");
   });
+
+  it("uses Korean official chemical names in the internal input format when available", () => {
+    const row: Section3Row = {
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Methylethylketoxime 96-29-7 0.1~1",
+      casNoCandidate: "96-29-7",
+      chemicalNameCandidate: "Methylethylketoxime",
+      contentMinCandidate: "0.1",
+      contentMaxCandidate: "1",
+      contentSingleCandidate: "",
+      contentText: "0.1~1",
+      confidence: 0.92,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review",
+      regulatoryMatches: [
+        match("chemicalInfoLookup", "공식 API 조회됨", "메틸 에틸 케톡심 / Methylethylketoxime / 96-29-7 / KE-03881")
+      ]
+    };
+
+    const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
+
+    expect(values[1]).toBe("메틸 에틸 케톡심");
+  });
 });
 
 function match(category: string, status: string, evidenceText: string) {

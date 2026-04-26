@@ -53,6 +53,18 @@ export function ProductsPage() {
     }
   }
 
+  async function deleteProduct(product: ProductSummary) {
+    if (!window.confirm(`${product.productName || "제품"} 제품/현장 연결을 삭제할까요?`)) return;
+    setFeedback("");
+    try {
+      const result = await api.deleteProduct(product.productId);
+      setProducts(result.products);
+      setFeedback("제품/현장 연결을 삭제했습니다.");
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "삭제에 실패했습니다.");
+    }
+  }
+
   return (
     <main className="watchlist-page">
       <section className="panel">
@@ -113,6 +125,14 @@ export function ProductsPage() {
               </div>
               <span>{product.siteNames || "현장 미연결"}</span>
               <span>{product.registrationStatus}</span>
+              <button
+                aria-label={`${product.productName || "제품"} 제품 삭제`}
+                className="table-action danger"
+                onClick={() => void deleteProduct(product)}
+                type="button"
+              >
+                삭제
+              </button>
             </article>
           ))}
         </div>

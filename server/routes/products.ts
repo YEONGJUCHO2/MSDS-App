@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { getDb } from "../db/connection";
+import { deleteProductRecord } from "../db/repositories";
 import { normalizeUploadedFileName } from "../services/fileName";
 
 export const productsRouter = Router();
@@ -58,6 +59,16 @@ productsRouter.post("/", (req, res) => {
   });
 
   res.json({ product, products: listProducts() });
+});
+
+productsRouter.delete("/:productId", (req, res) => {
+  const deleted = deleteProductRecord(getDb(), req.params.productId);
+  if (!deleted) {
+    res.status(404).json({ error: "product not found" });
+    return;
+  }
+
+  res.json({ products: listProducts() });
 });
 
 function listProducts() {

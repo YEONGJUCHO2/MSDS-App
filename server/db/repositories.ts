@@ -174,14 +174,7 @@ export function deleteDocumentRecord(db: Database.Database, documentId: string) 
   if (!document) return undefined;
 
   const transaction = db.transaction(() => {
-    db.prepare(`
-      UPDATE products
-      SET
-        document_id = '',
-        document_file_name = '',
-        registration_status = 'not_registered'
-      WHERE document_id = ?
-    `).run(documentId);
+    db.prepare("DELETE FROM products WHERE document_id = ?").run(documentId);
     db.prepare("DELETE FROM document_basic_info WHERE document_id = ?").run(documentId);
     db.prepare("DELETE FROM regulatory_matches WHERE document_id = ?").run(documentId);
     db.prepare("DELETE FROM review_queue WHERE document_id = ?").run(documentId);
@@ -192,6 +185,11 @@ export function deleteDocumentRecord(db: Database.Database, documentId: string) 
   transaction();
 
   return document;
+}
+
+export function deleteProductRecord(db: Database.Database, productId: string) {
+  const result = db.prepare("DELETE FROM products WHERE product_id = ?").run(productId);
+  return result.changes > 0;
 }
 
 export function pruneOrphanWatchlist(db: Database.Database) {

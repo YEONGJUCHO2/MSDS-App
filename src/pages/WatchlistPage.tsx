@@ -64,6 +64,9 @@ export function WatchlistPage() {
             </article>
           ))}
         </div>
+        <p className="lookup-feedback compact">
+          성공 조회 캐시는 30일, 실패·timeout 캐시는 1일 유지됩니다. 재조회 버튼은 캐시를 우회해 공식 API를 다시 호출합니다.
+        </p>
       </section>
 
       <section className="panel">

@@ -4,7 +4,7 @@ import { deleteDocumentRecord, insertDocument, insertManualComponentRow, upsertD
 import { migrate } from "../../server/db/schema";
 
 describe("document deletion", () => {
-  it("removes the MSDS document data while preserving product/site rows as unlinked records", () => {
+  it("removes the MSDS document data and linked product/site rows", () => {
     const db = new Database(":memory:");
     migrate(db);
     insertDocument(db, {
@@ -49,11 +49,7 @@ describe("document deletion", () => {
     expect(db.prepare("SELECT COUNT(*) AS count FROM regulatory_matches").get()).toEqual({ count: 0 });
     expect(db.prepare("SELECT COUNT(*) AS count FROM document_basic_info").get()).toEqual({ count: 0 });
     expect(db.prepare("SELECT COUNT(*) AS count FROM watchlist").get()).toEqual({ count: 0 });
-    expect(db.prepare("SELECT document_id AS documentId, document_file_name AS fileName, registration_status AS status FROM products").get()).toEqual({
-      documentId: "",
-      fileName: "",
-      status: "not_registered"
-    });
+    expect(db.prepare("SELECT COUNT(*) AS count FROM products").get()).toEqual({ count: 0 });
   });
 
   it("keeps watchlist rows when another registered MSDS still uses the same CAS No.", () => {

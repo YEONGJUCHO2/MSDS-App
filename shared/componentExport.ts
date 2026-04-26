@@ -34,12 +34,17 @@ export function formatComponentRowsAsTsv(rows: Section3Row[]) {
 export function formatComponentExportRow(row: Section3Row) {
   return REGULATORY_COMPONENT_EXPORT_COLUMNS.map((column) => {
     if (column.key === "casNo") return row.casNoCandidate;
-    if (column.key === "chemicalName") return row.chemicalNameCandidate;
+    if (column.key === "chemicalName") return displayChemicalName(row);
     if (column.key === "contentMin") return row.contentMinCandidate;
     if (column.key === "contentMax") return row.contentMaxCandidate;
     if (column.key === "contentSingle") return row.contentSingleCandidate;
     return regulatoryValue(row.regulatoryMatches, column);
   });
+}
+
+export function displayChemicalName(row: Section3Row) {
+  if (hasHangul(row.chemicalNameCandidate)) return row.chemicalNameCandidate;
+  return findKoreanChemicalName(row.regulatoryMatches) || row.chemicalNameCandidate;
 }
 
 export function formatSingleComponentAsTsv(row: Section3Row) {
@@ -71,6 +76,27 @@ function regulatoryValue(matches: RegulatoryMatch[] | undefined, column: Regulat
 
 function isExportCategory(category: string) {
   return REGULATORY_COMPONENT_EXPORT_COLUMNS.some((column) => "categories" in column && column.categories.includes(category as never));
+}
+
+function findKoreanChemicalName(matches: RegulatoryMatch[] | undefined) {
+  const preferred = (matches ?? []).find((match) => match.category === "chemicalInfoLookup" && hasHangul(match.evidenceText))
+    ?? (matches ?? []).find((match) => hasHangul(match.evidenceText));
+  if (!preferred) return "";
+
+  const candidate = preferred.evidenceText
+    .split("/")
+    .map((part) => part.trim())
+    .find((part) => hasHangul(part) && !looksLikeClassificationName(part));
+
+  return candidate ?? "";
+}
+
+function hasHangul(value: string) {
+  return /[가-힣]/.test(value);
+}
+
+function looksLikeClassificationName(value: string) {
+  return /(유해성물질|제한물질|금지물질|허가물질|사고대비물질|관리대상|특별관리|노출기준|허용기준)/.test(value);
 }
 
 function escapeTsvCell(value: string) {

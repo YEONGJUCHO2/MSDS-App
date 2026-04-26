@@ -83,6 +83,8 @@ export const api = {
       body: JSON.stringify({ watchIds })
     }),
   products: () => request<{ products: ProductSummary[] }>("/api/products"),
+  deleteProduct: (productId: string) =>
+    request<{ products: ProductSummary[] }>(`/api/products/${productId}`, { method: "DELETE" }),
   linkProductToDocument: (payload: ProductLinkPayload) =>
     request<{ product: ProductSummary; products: ProductSummary[] }>("/api/products", {
       method: "POST",
