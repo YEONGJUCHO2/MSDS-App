@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import { insertComponentRows, insertDocument, upsertDocumentText } from "../db/repositories";
+import { createSqliteDocumentRepository } from "../db/sqliteDocumentRepository";
 import { reviewComponentRowsWithOptionalCodex } from "./aiReviewer";
 import { matchAndStoreRegulatoryData } from "./regulatoryMatcher";
 import { classifyPdfTextLayer } from "./scanDetector";
@@ -10,14 +10,13 @@ export async function processExtractedText(
   db: Database.Database,
   input: { documentId?: string; fileName: string; fileHash?: string; storagePath?: string; text: string; pageCount: number }
 ) {
-  const existingDocument = input.documentId
-    ? (db.prepare("SELECT document_id FROM documents WHERE document_id = ?").get(input.documentId) as { document_id: string } | undefined)
-    : undefined;
+  const repo = createSqliteDocumentRepository(db);
+  const existingDocumentId = input.documentId ? repo.findDocumentId(input.documentId) : undefined;
 
   const documentId = input.documentId ?? "";
   const activeDocumentId =
-    existingDocument?.document_id ??
-    insertDocument(db, {
+    existingDocumentId ??
+    repo.insertDocument({
       documentId: documentId || undefined,
       fileName: input.fileName,
       fileHash: input.fileHash ?? "",
@@ -26,7 +25,7 @@ export async function processExtractedText(
     });
 
   const classification = classifyPdfTextLayer(input.text, input.pageCount);
-  upsertDocumentText(db, activeDocumentId, input.text, input.pageCount, classification.status);
+  repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, classification.status);
 
   if (classification.needsOcr) {
     return {
@@ -41,15 +40,10 @@ export async function processExtractedText(
     ...row,
     rowId: row.rowId ?? nanoid()
   }));
-  insertComponentRows(db, activeDocumentId, componentRows);
+  repo.insertComponentRows(activeDocumentId, componentRows);
   await matchAndStoreRegulatoryData(db, activeDocumentId, componentRows);
-  upsertDocumentText(db, activeDocumentId, input.text, input.pageCount, "needs_review");
-  const queueCount = (db.prepare(`
-    SELECT COUNT(*) AS count
-    FROM review_queue
-    WHERE document_id = ?
-      AND review_status = 'needs_review'
-  `).get(activeDocumentId) as { count: number }).count;
+  repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, "needs_review");
+  const queueCount = repo.countNeedsReview(activeDocumentId);
 
   return {
     documentId: activeDocumentId,
