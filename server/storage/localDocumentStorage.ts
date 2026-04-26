@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import path from "node:path";
 import type { DocumentStorage } from "./documentStorage";
+import { resolveStorageDir } from "../db/connection";
 
 function resolveSafeStoragePath(uploadsDir: string, documentId: string, fileName: string): string {
   if (!fileName.trim()) throw new Error("Document filename is required.");
@@ -20,7 +21,7 @@ function resolveSafeStoragePath(uploadsDir: string, documentId: string, fileName
 export function createLocalDocumentStorage(): DocumentStorage {
   return {
     async save(input) {
-      const uploadsDir = path.resolve(process.cwd(), "storage", "uploads");
+      const uploadsDir = path.resolve(resolveStorageDir(), "uploads");
       mkdirSync(uploadsDir, { recursive: true });
       const storagePath = resolveSafeStoragePath(uploadsDir, input.documentId, input.fileName);
       writeFileSync(storagePath, input.buffer);
