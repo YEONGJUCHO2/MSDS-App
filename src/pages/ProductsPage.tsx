@@ -2,19 +2,23 @@ import { useEffect, useState } from "react";
 import type { DocumentSummary, ProductSummary } from "../../shared/types";
 import { api } from "../api/client";
 
-const DOCUMENT_PICKER_LIMIT = 8;
+type SiteDetailFilter = "all" | "revision_needed" | "needs_review";
+
+interface SiteDetailState {
+  siteName: string;
+  filter: SiteDetailFilter;
+}
 
 export function ProductsPage() {
   const [products, setProducts] = useState<ProductSummary[]>([]);
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [documentSearch, setDocumentSearch] = useState("");
-  const [productName, setProductName] = useState("");
-  const [supplier, setSupplier] = useState("");
-  const [manufacturer, setManufacturer] = useState("");
   const [siteNames, setSiteNames] = useState("");
   const [siteSearch, setSiteSearch] = useState("");
   const [selectedSiteName, setSelectedSiteName] = useState("");
+  const [siteDetail, setSiteDetail] = useState<SiteDetailState | undefined>();
+  const [siteDetailSearch, setSiteDetailSearch] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [saving, setSaving] = useState(false);
@@ -24,38 +28,13 @@ export function ProductsPage() {
     void Promise.all([api.products(), api.documents()]).then(([productResult, documentResult]) => {
       setProducts(productResult.products);
       setDocuments(documentResult.documents);
-      if (selectedDocumentIds.length === 0 && documentResult.documents[0]) {
-        const document = documentResult.documents[0];
-        setSelectedDocumentIds([document.documentId]);
-        setProductName(stripPdf(document.fileName));
-      }
     });
   }, []);
 
-  function addDocument(documentId: string) {
+  function toggleDocument(documentId: string) {
     setSelectedDocumentIds((current) => {
-      if (current.includes(documentId)) return current;
-      const next = [...current, documentId];
-      if (next.length === 1) {
-        const document = documents.find((item) => item.documentId === next[0]);
-        setProductName(document ? stripPdf(document.fileName) : "");
-      } else {
-        setProductName("");
-      }
-      return next;
-    });
-  }
-
-  function removeDocument(documentId: string) {
-    setSelectedDocumentIds((current) => {
-      const next = current.filter((id) => id !== documentId);
-      if (next.length === 1) {
-        const document = documents.find((item) => item.documentId === next[0]);
-        setProductName(document ? stripPdf(document.fileName) : "");
-      } else {
-        setProductName("");
-      }
-      return next;
+      if (current.includes(documentId)) return current.filter((id) => id !== documentId);
+      return [...current, documentId];
     });
   }
 
@@ -66,16 +45,15 @@ export function ProductsPage() {
     try {
       const result = await api.linkProductToDocument({
         documentIds: selectedDocumentIds,
-        productName,
-        supplier,
-        manufacturer,
+        productName: "",
+        supplier: "",
+        manufacturer: "",
         siteNames
       });
       setProducts(result.products);
       setFeedback("MSDS와 사용현장을 연결했습니다.");
       setSiteNames("");
-      setSelectedDocumentIds(documents[0] ? [documents[0].documentId] : []);
-      setProductName(documents[0] ? stripPdf(documents[0].fileName) : "");
+      setSelectedDocumentIds([]);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "연결에 실패했습니다.");
     } finally {
@@ -112,16 +90,28 @@ export function ProductsPage() {
     .map((documentId) => documents.find((document) => document.documentId === documentId))
     .filter((document): document is DocumentSummary => Boolean(document));
   const filteredDocuments = documents.filter((document) => toSearchValue(document.fileName).includes(toSearchValue(documentSearch)));
-  const visibleDocumentResults = filteredDocuments.slice(0, DOCUMENT_PICKER_LIMIT);
   const documentResultLabel = documentSearch.trim()
-    ? filteredDocuments.length > DOCUMENT_PICKER_LIMIT
-      ? `검색 결과 ${filteredDocuments.length}건 중 ${visibleDocumentResults.length}건 표시`
-      : `검색 결과 ${filteredDocuments.length}건`
-    : `전체 ${documents.length}건 중 ${visibleDocumentResults.length}건 표시`;
+    ? `검색 결과 ${filteredDocuments.length}건`
+    : `전체 ${documents.length}건`;
   const siteGroups = groupProductsBySite(products);
   const filteredSiteGroups = siteGroups.filter((group) => toSearchValue(group.siteName).includes(toSearchValue(siteSearch)));
   const activeSiteGroup = filteredSiteGroups.find((group) => group.siteName === selectedSiteName) ?? filteredSiteGroups[0];
   const activeSiteSummary = activeSiteGroup ? summarizeSiteGroup(activeSiteGroup.items) : undefined;
+  const detailSiteGroup = siteDetail ? siteGroups.find((group) => group.siteName === siteDetail.siteName) : undefined;
+  const detailTitle = siteDetail ? siteDetailTitle(siteDetail.filter) : "";
+  const detailProducts = detailSiteGroup
+    ? detailSiteGroup.items.filter((product) => {
+        const status = productManagementStatus(product).key;
+        const matchesFilter = siteDetail?.filter === "all" || status === siteDetail?.filter;
+        const searchable = [product.productName, product.documentFileName, product.supplier, product.manufacturer].join(" ");
+        return matchesFilter && toSearchValue(searchable).includes(toSearchValue(siteDetailSearch));
+      })
+    : [];
+
+  function openSiteDetail(siteName: string, filter: SiteDetailFilter) {
+    setSiteDetail({ siteName, filter });
+    setSiteDetailSearch("");
+  }
 
   return (
     <main className="watchlist-page">
@@ -136,56 +126,29 @@ export function ProductsPage() {
               MSDS 검색
               <input placeholder="파일명으로 검색" value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} />
             </label>
-            <div className="document-picker-meta">{documents.length === 0 ? "업로드된 MSDS 없음" : documentResultLabel}</div>
-            <div className="document-result-list">
-              {visibleDocumentResults.map((document) => {
+            <div className="document-picker-meta">
+              <span>{documents.length === 0 ? "업로드된 MSDS 없음" : documentResultLabel}</span>
+              <strong>선택 {selectedDocuments.length}건</strong>
+            </div>
+            <div className="document-check-list" aria-label="등록된 MSDS">
+              {filteredDocuments.map((document) => {
                 const selected = selectedDocumentIds.includes(document.documentId);
                 return (
-                  <div className="document-result-row" key={document.documentId}>
+                  <label className="document-check-row" key={document.documentId}>
+                    <input checked={selected} onChange={() => toggleDocument(document.documentId)} type="checkbox" />
                     <span>{document.fileName}</span>
-                    <button
-                      aria-label={`${document.fileName} ${selected ? "선택됨" : "추가"}`}
-                      disabled={selected}
-                      onClick={() => addDocument(document.documentId)}
-                      type="button"
-                    >
-                      {selected ? "선택됨" : "추가"}
-                    </button>
-                  </div>
+                  </label>
                 );
               })}
-            </div>
-            <div className="selected-document-slots" aria-label="선택된 MSDS">
-              <strong>선택된 MSDS {selectedDocuments.length}건</strong>
-              {selectedDocuments.length === 0 ? <span>현장에 묶을 MSDS를 검색해서 추가하세요.</span> : null}
-              {selectedDocuments.map((document) => (
-                <span className="selected-document-chip" key={document.documentId}>
-                  {document.fileName}
-                  <button aria-label={`${document.fileName} 선택 해제`} onClick={() => removeDocument(document.documentId)} type="button">
-                    해제
-                  </button>
-                </span>
-              ))}
+              {filteredDocuments.length === 0 ? <div className="empty compact">검색된 MSDS가 없습니다.</div> : null}
             </div>
           </div>
           <div className="product-link-details">
-            <label className="wide-field">
-              제품명
-              <input value={productName} onChange={(event) => setProductName(event.target.value)} />
-            </label>
             <label>
               사용현장
               <input placeholder="예: 1공장, 분석실" value={siteNames} onChange={(event) => setSiteNames(event.target.value)} />
             </label>
-            <label>
-              공급사
-              <input value={supplier} onChange={(event) => setSupplier(event.target.value)} />
-            </label>
-            <label>
-              제조사
-              <input value={manufacturer} onChange={(event) => setManufacturer(event.target.value)} />
-            </label>
-            <div className="edit-actions wide-field">
+            <div className="edit-actions">
               <button disabled={selectedDocumentIds.length === 0 || !siteNames.trim() || saving} onClick={() => void linkProduct()} type="button">
                 {saving ? "연결중" : "선택 MSDS를 현장에 묶기"}
               </button>
@@ -236,23 +199,26 @@ export function ProductsPage() {
                 <span>{activeSiteSummary.total}개 MSDS 사용중</span>
               </div>
               <div className="site-summary-grid">
-                <strong>MSDS 등록 {activeSiteSummary.total}건</strong>
-                <strong>개정 필요 {activeSiteSummary.revisionNeeded}건</strong>
-                <strong>검수 필요 {activeSiteSummary.needsReview}건</strong>
-              </div>
-              <div className="watchlist-table">
-                {activeSiteGroup.items.map((product) => {
-                  const status = productManagementStatus(product);
-                  return (
-                    <div className="site-msds-row" key={`site-${product.productId}`}>
-                      <div>
-                        <strong>{product.productName || "제품명 확인 필요"}</strong>
-                        <span>{product.documentFileName || "MSDS 미연결"}</span>
-                      </div>
-                      <span className={`status-pill ${status.key}`}>{status.label}</span>
-                    </div>
-                  );
-                })}
+                <button aria-label={`MSDS 등록 ${activeSiteSummary.total}건 상세 조회`} onClick={() => openSiteDetail(activeSiteGroup.siteName, "all")} type="button">
+                  <strong>MSDS 등록 {activeSiteSummary.total}건</strong>
+                  <span>전체 보기</span>
+                </button>
+                <button
+                  aria-label={`개정 필요 ${activeSiteSummary.revisionNeeded}건 상세 조회`}
+                  onClick={() => openSiteDetail(activeSiteGroup.siteName, "revision_needed")}
+                  type="button"
+                >
+                  <strong>개정 필요 {activeSiteSummary.revisionNeeded}건</strong>
+                  <span>대상 보기</span>
+                </button>
+                <button
+                  aria-label={`검수 필요 ${activeSiteSummary.needsReview}건 상세 조회`}
+                  onClick={() => openSiteDetail(activeSiteGroup.siteName, "needs_review")}
+                  type="button"
+                >
+                  <strong>검수 필요 {activeSiteSummary.needsReview}건</strong>
+                  <span>대상 보기</span>
+                </button>
               </div>
             </article>
           ) : null}
@@ -308,12 +274,45 @@ export function ProductsPage() {
           })}
         </div>
       </section>
+      {siteDetail && detailSiteGroup ? (
+        <div className="modal-backdrop">
+          <section aria-labelledby="site-detail-title" aria-modal="true" className="modal-panel" role="dialog">
+            <div className="modal-title">
+              <div>
+                <h2 id="site-detail-title">{siteDetail.siteName} MSDS 상세 조회</h2>
+                <span>{detailTitle} · {detailProducts.length}건</span>
+              </div>
+              <button aria-label="팝업 닫기" onClick={() => setSiteDetail(undefined)} type="button">닫기</button>
+            </div>
+            <label className="modal-search">
+              팝업 MSDS 검색
+              <input
+                placeholder="제품명, 파일명, 공급사 검색"
+                value={siteDetailSearch}
+                onChange={(event) => setSiteDetailSearch(event.target.value)}
+              />
+            </label>
+            <div className="modal-msds-list">
+              {detailProducts.length === 0 ? <div className="empty compact">조회된 MSDS가 없습니다.</div> : null}
+              {detailProducts.map((product) => {
+                const status = productManagementStatus(product);
+                return (
+                  <article className="modal-msds-row" key={`detail-${product.productId}`}>
+                    <div>
+                      <strong>{product.productName || "제품명 확인 필요"}</strong>
+                      <span>{product.documentFileName || "MSDS 미연결"}</span>
+                      <span>{product.supplier || "공급사 없음"} · {product.manufacturer || "제조사 없음"}</span>
+                    </div>
+                    <span className={`status-pill ${status.key}`}>{status.label}</span>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
-}
-
-function stripPdf(fileName: string) {
-  return fileName.replace(/\.pdf$/i, "");
 }
 
 function toSearchValue(value: string) {
@@ -343,6 +342,12 @@ function summarizeSiteGroup(products: ProductSummary[]) {
     },
     { total: 0, revisionNeeded: 0, needsReview: 0 }
   );
+}
+
+function siteDetailTitle(filter: SiteDetailFilter) {
+  if (filter === "revision_needed") return "개정 필요";
+  if (filter === "needs_review") return "검수 필요";
+  return "전체 MSDS";
 }
 
 function productManagementStatus(product: ProductSummary) {

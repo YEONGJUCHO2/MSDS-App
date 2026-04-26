@@ -66,13 +66,14 @@ describe("ProductsPage", () => {
   it("links an uploaded MSDS document to site names", async () => {
     render(<ProductsPage />);
 
-    expect(await screen.findByDisplayValue("sealant-msds")).toBeInTheDocument();
+    expect(await screen.findByLabelText("sealant-msds.pdf")).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("sealant-msds.pdf"));
     fireEvent.change(screen.getByLabelText("사용현장"), { target: { value: "1공장" } });
     fireEvent.click(screen.getByRole("button", { name: "선택 MSDS를 현장에 묶기" }));
 
     await waitFor(() => expect(api.linkProductToDocument).toHaveBeenCalledWith({
       documentIds: ["doc-1"],
-      productName: "sealant-msds",
+      productName: "",
       supplier: "",
       manufacturer: "",
       siteNames: "1공장"
@@ -128,7 +129,8 @@ describe("ProductsPage", () => {
     render(<ProductsPage />);
 
     expect(await screen.findByText("현장 관리 조회")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "cleaner-msds.pdf 추가" }));
+    fireEvent.click(screen.getByLabelText("sealant-msds.pdf"));
+    fireEvent.click(screen.getByLabelText("cleaner-msds.pdf"));
     fireEvent.change(screen.getByLabelText("사용현장"), { target: { value: "1공장" } });
     fireEvent.click(screen.getByRole("button", { name: "선택 MSDS를 현장에 묶기" }));
 
@@ -142,9 +144,9 @@ describe("ProductsPage", () => {
     expect((await screen.findAllByText("1공장")).length).toBeGreaterThan(0);
     const siteSection = screen.getByRole("heading", { name: "현장 관리 조회" }).closest("section");
     expect(siteSection).not.toBeNull();
-    expect(within(siteSection as HTMLElement).getByText("sealant-msds.pdf")).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("cleaner-msds.pdf")).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("검수 필요")).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).queryByText("cleaner-msds.pdf")).not.toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "MSDS 등록 2건 상세 조회" })).toBeInTheDocument();
   });
 
   it("filters product links by search text and management status", async () => {
@@ -192,7 +194,7 @@ describe("ProductsPage", () => {
     expect(within(productSection as HTMLElement).getByText(/cleaner-msds\.pdf/)).toBeInTheDocument();
   });
 
-  it("limits the MSDS picker and finds documents through search", async () => {
+  it("shows a scrollable MSDS checkbox list and finds documents through search", async () => {
     vi.mocked(api.documents).mockResolvedValue({
       documents: Array.from({ length: 25 }, (_, index) => ({
         documentId: `doc-${index + 1}`,
@@ -205,17 +207,21 @@ describe("ProductsPage", () => {
     });
     render(<ProductsPage />);
 
-    expect(await screen.findByText("전체 25건 중 8건 표시")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "bulk-08.pdf 추가" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "bulk-25.pdf 추가" })).not.toBeInTheDocument();
+    expect(await screen.findByText("전체 25건")).toBeInTheDocument();
+    expect(screen.getByLabelText("bulk-01.pdf")).toBeInTheDocument();
+    expect(screen.getByLabelText("bulk-25.pdf")).toBeInTheDocument();
+    expect(screen.getByText("선택 0건")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("bulk-25.pdf"));
+    expect(screen.getByText("선택 1건")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("MSDS 검색"), { target: { value: "bulk-25" } });
 
     expect(screen.getByText("검색 결과 1건")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "bulk-25.pdf 추가" })).toBeInTheDocument();
+    expect(screen.getByLabelText("bulk-25.pdf")).toBeInTheDocument();
   });
 
-  it("shows a site management lookup with counts and attention items", async () => {
+  it("shows site count cards and opens MSDS details in a searchable modal", async () => {
     vi.mocked(api.products).mockResolvedValue({
       products: [
         {
@@ -267,11 +273,22 @@ describe("ProductsPage", () => {
 
     expect(within(siteSection as HTMLElement).getByRole("button", { name: "1공장 현장 조회" })).toBeInTheDocument();
     expect(within(siteSection as HTMLElement).queryByRole("button", { name: "2공장 현장 조회" })).not.toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("MSDS 등록 2건")).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("개정 필요 1건")).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("검수 필요 1건")).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("sealant-msds.pdf")).toBeInTheDocument();
-    expect(within(siteSection as HTMLElement).getByText("cleaner-msds.pdf")).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "MSDS 등록 2건 상세 조회" })).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "개정 필요 1건 상세 조회" })).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "검수 필요 1건 상세 조회" })).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).queryByText("cleaner-msds.pdf")).not.toBeInTheDocument();
+
+    fireEvent.click(within(siteSection as HTMLElement).getByRole("button", { name: "MSDS 등록 2건 상세 조회" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "1공장 MSDS 상세 조회" });
+    expect(within(dialog).getByText("sealant-msds.pdf")).toBeInTheDocument();
+    expect(within(dialog).getByText("cleaner-msds.pdf")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText("팝업 MSDS 검색"), { target: { value: "cleaner" } });
+
+    expect(within(dialog).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("cleaner-msds.pdf")).toBeInTheDocument();
   });
 
   it("matches Korean search text even when uploaded file names are decomposed Unicode", async () => {
