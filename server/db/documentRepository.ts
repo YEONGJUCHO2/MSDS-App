@@ -11,9 +11,9 @@ export interface DocumentInsertInput {
 }
 
 export interface DocumentRepository {
-  findDocumentId(documentId: string): string | undefined;
-  insertDocument(input: DocumentInsertInput): string;
-  upsertDocumentText(documentId: string, textContent: string, pageCount: number, status: string): void;
-  insertComponentRows(documentId: string, rows: Section3Row[]): void;
-  countNeedsReview(documentId: string): number;
+  findDocumentId(documentId: string): Promise<string | undefined>;
+  insertDocument(input: DocumentInsertInput): Promise<string>;
+  upsertDocumentText(documentId: string, textContent: string, pageCount: number, status: string): Promise<void>;
+  insertComponentRows(documentId: string, rows: Section3Row[]): Promise<void>;
+  countNeedsReview(documentId: string): Promise<number>;
 }

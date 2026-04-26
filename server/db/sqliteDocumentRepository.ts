@@ -4,24 +4,24 @@ import { insertComponentRows, insertDocument, upsertDocumentText } from "./repos
 
 export function createSqliteDocumentRepository(db: Database.Database): DocumentRepository {
   return {
-    findDocumentId(documentId) {
+    async findDocumentId(documentId) {
       const row = db.prepare("SELECT document_id AS documentId FROM documents WHERE document_id = ?").get(documentId) as { documentId: string } | undefined;
       return row?.documentId;
     },
 
-    insertDocument(input: DocumentInsertInput) {
+    async insertDocument(input: DocumentInsertInput) {
       return insertDocument(db, input);
     },
 
-    upsertDocumentText(documentId, textContent, pageCount, status) {
+    async upsertDocumentText(documentId, textContent, pageCount, status) {
       upsertDocumentText(db, documentId, textContent, pageCount, status);
     },
 
-    insertComponentRows(documentId, rows) {
+    async insertComponentRows(documentId, rows) {
       insertComponentRows(db, documentId, rows);
     },
 
-    countNeedsReview(documentId) {
+    async countNeedsReview(documentId) {
       const row = db.prepare(`
         SELECT COUNT(*) AS count
         FROM review_queue

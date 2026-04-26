@@ -1,7 +1,8 @@
 import Database from "better-sqlite3";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { DocumentRepository } from "../../server/db/documentRepository";
 import { migrate } from "../../server/db/schema";
-import { processExtractedText } from "../../server/services/processingPipeline";
+import { processExtractedText, processExtractedTextWithRepository } from "../../server/services/processingPipeline";
 
 describe("processing pipeline", () => {
   afterEach(() => {
@@ -24,6 +25,48 @@ describe("processing pipeline", () => {
     expect(result.componentRows).toHaveLength(1);
     expect(result.message).toBe("1개 성분 후보를 사내 입력 포맷에 반영했습니다. 추가 확인이 필요한 항목은 없습니다.");
     expect(db.prepare("SELECT COUNT(*) AS count FROM review_queue").get()).toEqual({ count: 0 });
+  });
+
+  it("can run the core pipeline with an async document repository", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    const calls: string[] = [];
+    const repo: DocumentRepository = {
+      async findDocumentId(documentId) {
+        calls.push(`find:${documentId}`);
+        return undefined;
+      },
+      async insertDocument(input) {
+        calls.push(`insert:${input.documentId}`);
+        return input.documentId ?? "generated-doc";
+      },
+      async upsertDocumentText(documentId, _textContent, _pageCount, status) {
+        calls.push(`text:${documentId}:${status}`);
+      },
+      async insertComponentRows() {
+        throw new Error("scan-only input should not insert component rows");
+      },
+      async countNeedsReview() {
+        throw new Error("scan-only input should not count review queue");
+      }
+    };
+
+    const result = await processExtractedTextWithRepository(db, repo, {
+      documentId: "doc-async",
+      fileName: "scan.pdf",
+      text: "too short",
+      pageCount: 1
+    });
+
+    expect(result).toMatchObject({
+      documentId: "doc-async",
+      status: "manual_input_required"
+    });
+    expect(calls).toEqual([
+      "find:doc-async",
+      "insert:doc-async",
+      "text:doc-async:scan_detected"
+    ]);
   });
 
   it("queues component rows that need human attention before monitoring", async () => {

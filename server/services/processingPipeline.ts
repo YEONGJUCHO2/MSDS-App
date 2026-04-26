@@ -1,22 +1,39 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
+import type { DocumentRepository } from "../db/documentRepository";
 import { createSqliteDocumentRepository } from "../db/sqliteDocumentRepository";
 import { reviewComponentRowsWithOptionalCodex } from "./aiReviewer";
 import { matchAndStoreRegulatoryData } from "./regulatoryMatcher";
 import { classifyPdfTextLayer } from "./scanDetector";
 import { extractSection3Rows } from "./tableExtractor";
 
+type ProcessExtractedTextInput = {
+  documentId?: string;
+  fileName: string;
+  fileHash?: string;
+  storagePath?: string;
+  text: string;
+  pageCount: number;
+};
+
 export async function processExtractedText(
   db: Database.Database,
-  input: { documentId?: string; fileName: string; fileHash?: string; storagePath?: string; text: string; pageCount: number }
+  input: ProcessExtractedTextInput
 ) {
-  const repo = createSqliteDocumentRepository(db);
-  const existingDocumentId = input.documentId ? repo.findDocumentId(input.documentId) : undefined;
+  return processExtractedTextWithRepository(db, createSqliteDocumentRepository(db), input);
+}
+
+export async function processExtractedTextWithRepository(
+  db: Database.Database,
+  repo: DocumentRepository,
+  input: ProcessExtractedTextInput
+) {
+  const existingDocumentId = input.documentId ? await repo.findDocumentId(input.documentId) : undefined;
 
   const documentId = input.documentId ?? "";
   const activeDocumentId =
     existingDocumentId ??
-    repo.insertDocument({
+    await repo.insertDocument({
       documentId: documentId || undefined,
       fileName: input.fileName,
       fileHash: input.fileHash ?? "",
@@ -25,7 +42,7 @@ export async function processExtractedText(
     });
 
   const classification = classifyPdfTextLayer(input.text, input.pageCount);
-  repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, classification.status);
+  await repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, classification.status);
 
   if (classification.needsOcr) {
     return {
@@ -40,10 +57,10 @@ export async function processExtractedText(
     ...row,
     rowId: row.rowId ?? nanoid()
   }));
-  repo.insertComponentRows(activeDocumentId, componentRows);
+  await repo.insertComponentRows(activeDocumentId, componentRows);
   await matchAndStoreRegulatoryData(db, activeDocumentId, componentRows);
-  repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, "needs_review");
-  const queueCount = repo.countNeedsReview(activeDocumentId);
+  await repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, "needs_review");
+  const queueCount = await repo.countNeedsReview(activeDocumentId);
 
   return {
     documentId: activeDocumentId,
