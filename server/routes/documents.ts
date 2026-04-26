@@ -137,9 +137,27 @@ async function enrichBasicInfoWithAi(textContent: string, fields: ReturnType<typ
   if (!adapter) return fields;
 
   try {
-    return await adapter.enrichBasicInfo({ text: textContent, localFields: fields });
+    return await withBasicInfoTimeout(
+      adapter.enrichBasicInfo({ text: textContent, localFields: fields }),
+      fields,
+      Number(process.env.MSDS_AI_BASIC_INFO_TIMEOUT_MS || 5_000)
+    );
   } catch {
     return fields;
+  }
+}
+
+export async function withBasicInfoTimeout<T>(operation: Promise<T>, fallback: T, timeoutMs: number) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((resolve) => {
+        timeout = setTimeout(() => resolve(fallback), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
 }
 

@@ -10,6 +10,7 @@ export function ReviewPage({ documents, onDeleteDocument }: { documents: Documen
   const [selectedId, setSelectedId] = useState(documents[0]?.documentId ?? "");
   const [rows, setRows] = useState<Section3Row[]>([]);
   const [basicInfoFields, setBasicInfoFields] = useState<BasicInfoField[]>([]);
+  const [basicInfoLoading, setBasicInfoLoading] = useState(false);
   const [recheckingRowId, setRecheckingRowId] = useState("");
   const [recheckMessages, setRecheckMessages] = useState<Record<string, string>>({});
 
@@ -18,6 +19,7 @@ export function ReviewPage({ documents, onDeleteDocument }: { documents: Documen
     let active = true;
     setRows([]);
     setBasicInfoFields([]);
+    setBasicInfoLoading(true);
     void api.components(selectedId)
       .then((componentResult) => {
         if (active) setRows(componentResult.rows);
@@ -31,6 +33,9 @@ export function ReviewPage({ documents, onDeleteDocument }: { documents: Documen
       })
       .catch(() => {
         if (active) setBasicInfoFields([]);
+      })
+      .finally(() => {
+        if (active) setBasicInfoLoading(false);
       });
     return () => {
       active = false;
@@ -42,6 +47,7 @@ export function ReviewPage({ documents, onDeleteDocument }: { documents: Documen
       setSelectedId(documents[0]?.documentId ?? "");
       setRows([]);
       setBasicInfoFields([]);
+      setBasicInfoLoading(false);
       return;
     }
     if (!selectedId && documents[0]?.documentId) {
@@ -111,7 +117,7 @@ export function ReviewPage({ documents, onDeleteDocument }: { documents: Documen
         ))}
       </aside>
       <div className="review-main">
-        <BasicInfoPanel documentId={selectedId} fields={basicInfoFields} onSave={handleSaveBasicInfo} />
+        <BasicInfoPanel documentId={selectedId} fields={basicInfoFields} isLoading={basicInfoLoading} onSave={handleSaveBasicInfo} />
         <ComponentTable
           rows={rows}
           onAdd={handleAdd}

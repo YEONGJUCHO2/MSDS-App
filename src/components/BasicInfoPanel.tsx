@@ -4,10 +4,11 @@ import type { BasicInfoField } from "../../shared/types";
 interface BasicInfoPanelProps {
   documentId: string;
   fields: BasicInfoField[];
+  isLoading?: boolean;
   onSave: (fields: BasicInfoField[]) => Promise<void>;
 }
 
-export function BasicInfoPanel({ documentId, fields, onSave }: BasicInfoPanelProps) {
+export function BasicInfoPanel({ documentId, fields, isLoading = false, onSave }: BasicInfoPanelProps) {
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
@@ -42,8 +43,15 @@ export function BasicInfoPanel({ documentId, fields, onSave }: BasicInfoPanelPro
           <button data-testid="basic-info-save" disabled={fields.length === 0 || saveState === "saving"} type="submit">저장</button>
         </div>
       </div>
-      <div className="basic-info-grid">
-        {fields.map((field) => (
+      {isLoading && fields.length === 0 ? (
+        <div className="empty">물품 기본 정보를 불러오는 중입니다.</div>
+      ) : null}
+      {!isLoading && fields.length === 0 ? (
+        <div className="empty">물품 기본 정보 후보가 없습니다.</div>
+      ) : null}
+      {fields.length > 0 ? (
+        <div className="basic-info-grid">
+          {fields.map((field) => (
           <div className="basic-info-pair" key={field.key}>
             <label className="basic-info-label" htmlFor={`basic-${field.key}`}>{field.label}</label>
             <input
@@ -58,8 +66,9 @@ export function BasicInfoPanel({ documentId, fields, onSave }: BasicInfoPanelPro
               value={draftValues[field.key] ?? ""}
             />
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
     </form>
   );
 }

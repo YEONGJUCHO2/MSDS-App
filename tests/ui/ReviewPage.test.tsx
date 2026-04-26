@@ -45,4 +45,21 @@ describe("ReviewPage", () => {
     await waitFor(() => expect(screen.getAllByRole("cell", { name: "96-29-7" }).length).toBeGreaterThan(0));
     expect(screen.getAllByRole("cell", { name: "Methylethylketoxime" }).length).toBeGreaterThan(0);
   });
+
+  it("shows a loading state instead of an empty basic info panel while basic info is pending", async () => {
+    const documents: DocumentSummary[] = [{
+      documentId: "doc-1",
+      fileName: "sample.pdf",
+      status: "needs_review",
+      uploadedAt: "2026-04-26T00:00:00.000Z",
+      componentCount: 0,
+      queueCount: 0
+    }];
+    vi.mocked(api.components).mockResolvedValue({ rows: [] });
+    vi.mocked(api.documentBasicInfo).mockReturnValue(new Promise(() => undefined));
+
+    render(<ReviewPage documents={documents} onDeleteDocument={vi.fn()} />);
+
+    expect(await screen.findByText("물품 기본 정보를 불러오는 중입니다.")).toBeInTheDocument();
+  });
 });
