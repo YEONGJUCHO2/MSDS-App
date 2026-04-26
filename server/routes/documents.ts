@@ -20,7 +20,7 @@ import {
 } from "../db/repositories";
 import { normalizeUploadedFileName } from "../services/fileName";
 import { extractDocumentBasicInfo } from "../services/basicInfoExtractor";
-import { createCodexAdapter } from "../services/codexAdapter";
+import { createConfiguredAiAdapter, resolveAiProvider } from "../services/aiProvider";
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
 import { recheckComponentRegulatoryData } from "../services/regulatoryMatcher";
@@ -120,7 +120,7 @@ async function readDocumentBasicInfo(documentId: string) {
   const savedByKey = new Map(savedFields.map((field) => [field.key, field]));
   const fields = savedFields.length > 0
     ? extractedFields.map((field) => savedByKey.get(field.key) ?? field)
-    : await enrichBasicInfoWithCodex(document.textContent, extractedFields);
+    : await enrichBasicInfoWithAi(document.textContent, extractedFields);
 
   return {
     documentId: document.documentId,
@@ -128,16 +128,14 @@ async function readDocumentBasicInfo(documentId: string) {
   };
 }
 
-async function enrichBasicInfoWithCodex(textContent: string, fields: ReturnType<typeof extractDocumentBasicInfo>) {
-  if (process.env.MSDS_CODEX_ENABLED !== "true") return fields;
+async function enrichBasicInfoWithAi(textContent: string, fields: ReturnType<typeof extractDocumentBasicInfo>) {
+  const providerConfig = resolveAiProvider();
+  if (providerConfig.provider === "local") return fields;
+
+  const adapter = createConfiguredAiAdapter(providerConfig);
+  if (!adapter) return fields;
 
   try {
-    const adapter = createCodexAdapter({
-      enabled: true,
-      command: process.env.MSDS_CODEX_COMMAND || "codex",
-      model: process.env.MSDS_CODEX_MODEL || undefined,
-      timeoutMs: Number(process.env.MSDS_CODEX_TIMEOUT_MS || 60_000)
-    });
     return await adapter.enrichBasicInfo({ text: textContent, localFields: fields });
   } catch {
     return fields;

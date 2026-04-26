@@ -465,7 +465,8 @@ input {
 .basic-info-value.source-linked_site,
 .basic-info-value.source-system,
 .basic-info-value.source-user_saved,
-.basic-info-value.source-codex_cli {
+.basic-info-value.source-codex_cli,
+.basic-info-value.source-openai_api {
   background: #d7edf7;
 }
 
