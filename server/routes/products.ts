@@ -13,8 +13,12 @@ productsRouter.get("/", (_req, res) => {
 productsRouter.post("/", (req, res) => {
   const db = getDb();
   const documentId = String(req.body?.documentId ?? "").trim();
+  const documentIds = Array.isArray(req.body?.documentIds)
+    ? req.body.documentIds.map((id: unknown) => String(id).trim()).filter(Boolean)
+    : [];
+  const selectedDocumentIds = documentIds.length > 0 ? [...new Set(documentIds)] : documentId ? [documentId] : [];
   const siteNames = String(req.body?.siteNames ?? "").trim();
-  if (!documentId) {
+  if (selectedDocumentIds.length === 0) {
     res.status(400).json({ error: "documentId is required" });
     return;
   }
@@ -23,29 +27,22 @@ productsRouter.post("/", (req, res) => {
     return;
   }
 
-  const document = db.prepare(`
+  const documents = db.prepare(`
     SELECT document_id AS documentId, file_name AS fileName
     FROM documents
-    WHERE document_id = ?
-  `).get(documentId) as { documentId: string; fileName: string } | undefined;
-  if (!document) {
+    WHERE document_id IN (${selectedDocumentIds.map(() => "?").join(",")})
+    ORDER BY uploaded_at DESC
+  `).all(...selectedDocumentIds) as Array<{ documentId: string; fileName: string }>;
+  if (documents.length !== selectedDocumentIds.length) {
     res.status(404).json({ error: "MSDS document not found" });
     return;
   }
 
-  const documentFileName = normalizeUploadedFileName(document.fileName);
-  const product = {
-    productId: nanoid(),
-    documentId,
-    documentFileName,
-    productName: String(req.body?.productName ?? "").trim() || documentFileName.replace(/\.pdf$/i, ""),
-    supplier: String(req.body?.supplier ?? "").trim(),
-    manufacturer: String(req.body?.manufacturer ?? "").trim(),
-    siteNames,
-    registrationStatus: "linked_to_site"
-  };
+  const requestedName = String(req.body?.productName ?? "").trim();
+  const supplier = String(req.body?.supplier ?? "").trim();
+  const manufacturer = String(req.body?.manufacturer ?? "").trim();
 
-  db.prepare(`
+  const insert = db.prepare(`
     INSERT INTO products (
       product_id, document_id, document_file_name, product_name, supplier, manufacturer,
       site_names, registration_status, created_at
@@ -53,12 +50,33 @@ productsRouter.post("/", (req, res) => {
       @productId, @documentId, @documentFileName, @productName, @supplier, @manufacturer,
       @siteNames, @registrationStatus, @createdAt
     )
-  `).run({
-    ...product,
-    createdAt: new Date().toISOString()
+  `);
+
+  const products = documents.map((document) => {
+    const documentFileName = normalizeUploadedFileName(document.fileName);
+    return {
+      productId: nanoid(),
+      documentId: document.documentId,
+      documentFileName,
+      productName: requestedName && documents.length === 1 ? requestedName : documentFileName.replace(/\.pdf$/i, ""),
+      supplier,
+      manufacturer,
+      siteNames,
+      registrationStatus: "linked_to_site"
+    };
   });
 
-  res.json({ product, products: listProducts() });
+  const transaction = db.transaction(() => {
+    for (const product of products) {
+      insert.run({
+        ...product,
+        createdAt: new Date().toISOString()
+      });
+    }
+  });
+  transaction();
+
+  res.json({ product: products[0], products: listProducts() });
 });
 
 productsRouter.delete("/:productId", (req, res) => {
@@ -74,15 +92,22 @@ productsRouter.delete("/:productId", (req, res) => {
 function listProducts() {
   return getDb().prepare(`
     SELECT
-      product_id AS productId,
-      document_id AS documentId,
-      document_file_name AS documentFileName,
-      product_name AS productName,
-      supplier,
-      manufacturer,
-      site_names AS siteNames,
-      registration_status AS registrationStatus
+      products.product_id AS productId,
+      products.document_id AS documentId,
+      products.document_file_name AS documentFileName,
+      products.product_name AS productName,
+      products.supplier,
+      products.manufacturer,
+      products.site_names AS siteNames,
+      products.registration_status AS registrationStatus,
+      COALESCE(documents.status, '') AS documentStatus,
+      COUNT(DISTINCT components.row_id) AS componentCount,
+      COUNT(DISTINCT review_queue.queue_id) AS queueCount
     FROM products
-    ORDER BY created_at DESC
+    LEFT JOIN documents ON documents.document_id = products.document_id
+    LEFT JOIN components ON components.document_id = products.document_id
+    LEFT JOIN review_queue ON review_queue.document_id = products.document_id AND review_queue.review_status = 'needs_review'
+    GROUP BY products.product_id
+    ORDER BY products.created_at DESC
   `).all();
 }

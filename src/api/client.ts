@@ -18,7 +18,8 @@ export type ComponentCandidatePayload = Pick<
 >;
 
 export interface ProductLinkPayload {
-  documentId: string;
+  documentId?: string;
+  documentIds?: string[];
   productName: string;
   supplier: string;
   manufacturer: string;

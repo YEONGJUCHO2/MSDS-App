@@ -142,6 +142,7 @@ export function migrate(db: Database.Database) {
     );
   `);
 
+  ensureProductsPrimaryKeySchema(db);
   ensureColumn(db, "components", "ai_review_status", "TEXT NOT NULL DEFAULT 'not_reviewed'");
   ensureColumn(db, "components", "ai_review_note", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "components", "regulatory_match_status", "TEXT NOT NULL DEFAULT 'not_checked'");
@@ -155,4 +156,50 @@ function ensureColumn(db: Database.Database, tableName: string, columnName: stri
   if (!rows.some((row) => row.name === columnName)) {
     db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
   }
+}
+
+function ensureProductsPrimaryKeySchema(db: Database.Database) {
+  const columns = db.prepare("PRAGMA table_info(products)").all() as Array<{ name: string }>;
+  if (columns.some((row) => row.name === "product_id")) return;
+
+  const legacyTableName = `products_legacy_${Date.now()}`;
+  db.exec(`
+    ALTER TABLE products RENAME TO ${legacyTableName};
+
+    CREATE TABLE products (
+      product_id TEXT PRIMARY KEY,
+      document_id TEXT NOT NULL DEFAULT '',
+      document_file_name TEXT NOT NULL DEFAULT '',
+      product_name TEXT NOT NULL,
+      supplier TEXT NOT NULL DEFAULT '',
+      manufacturer TEXT NOT NULL DEFAULT '',
+      site_names TEXT NOT NULL DEFAULT '',
+      registration_status TEXT NOT NULL DEFAULT 'not_registered',
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  const hasColumn = (columnName: string) => columns.some((row) => row.name === columnName);
+  const valueExpression = (columnName: string, fallback: string) => (hasColumn(columnName) ? columnName : fallback);
+  const productIdExpression = hasColumn("id")
+    ? "COALESCE(NULLIF(id, ''), lower(hex(randomblob(16))))"
+    : "lower(hex(randomblob(16)))";
+
+  db.exec(`
+    INSERT INTO products (
+      product_id, document_id, document_file_name, product_name, supplier,
+      manufacturer, site_names, registration_status, created_at
+    )
+    SELECT
+      ${productIdExpression},
+      ${valueExpression("document_id", "''")},
+      ${valueExpression("document_file_name", "''")},
+      ${valueExpression("product_name", "'미등록 제품'")},
+      ${valueExpression("supplier", "''")},
+      ${valueExpression("manufacturer", "''")},
+      ${valueExpression("site_names", "''")},
+      ${valueExpression("registration_status", "'not_registered'")},
+      ${valueExpression("created_at", "datetime('now')")}
+    FROM ${legacyTableName};
+  `);
 }

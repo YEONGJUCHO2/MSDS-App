@@ -94,6 +94,9 @@ export interface ProductSummary {
   manufacturer: string;
   siteNames: string;
   registrationStatus: string;
+  documentStatus?: ProcessingStatus | "";
+  componentCount?: number;
+  queueCount?: number;
 }
 
 export interface WatchlistItem {
