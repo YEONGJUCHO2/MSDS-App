@@ -4,12 +4,25 @@ import { unlink } from "node:fs/promises";
 import path from "node:path";
 import type { DocumentStorage } from "./documentStorage";
 
+function resolveSafeStoragePath(uploadsDir: string, documentId: string, fileName: string): string {
+  if (!fileName.trim()) throw new Error("Document filename is required.");
+  if (fileName.includes("/") || fileName.includes("\\")) {
+    throw new Error("Document filename cannot contain path separators.");
+  }
+
+  const storagePath = path.resolve(uploadsDir, `${documentId}-${fileName}`);
+  if (!storagePath.startsWith(`${uploadsDir}${path.sep}`)) {
+    throw new Error("Document storage path must stay inside the uploads directory.");
+  }
+  return storagePath;
+}
+
 export function createLocalDocumentStorage(): DocumentStorage {
   return {
     async save(input) {
       const uploadsDir = path.resolve(process.cwd(), "storage", "uploads");
       mkdirSync(uploadsDir, { recursive: true });
-      const storagePath = path.join(uploadsDir, `${input.documentId}-${input.fileName}`);
+      const storagePath = resolveSafeStoragePath(uploadsDir, input.documentId, input.fileName);
       writeFileSync(storagePath, input.buffer);
       return {
         storagePath,
