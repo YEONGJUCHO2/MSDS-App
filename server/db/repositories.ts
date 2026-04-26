@@ -139,6 +139,7 @@ export function updateComponentCandidate(db: Database.Database, rowId: string, i
     `).run({ rowId, rawRowText, contentText, changed: changed ? 1 : 0, ...input });
     if (changed) {
       db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+      pruneOrphanWatchlist(db);
     }
     db.prepare(`
       UPDATE review_queue
@@ -163,6 +164,7 @@ export function removeComponentRow(db: Database.Database, rowId: string) {
     db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
     db.prepare("DELETE FROM review_queue WHERE entity_id = ?").run(rowId);
     db.prepare("DELETE FROM components WHERE row_id = ?").run(rowId);
+    pruneOrphanWatchlist(db);
   });
   transaction();
 }
@@ -185,10 +187,27 @@ export function deleteDocumentRecord(db: Database.Database, documentId: string) 
     db.prepare("DELETE FROM review_queue WHERE document_id = ?").run(documentId);
     db.prepare("DELETE FROM components WHERE document_id = ?").run(documentId);
     db.prepare("DELETE FROM documents WHERE document_id = ?").run(documentId);
+    pruneOrphanWatchlist(db);
   });
   transaction();
 
   return document;
+}
+
+export function pruneOrphanWatchlist(db: Database.Database) {
+  db.prepare(`
+    DELETE FROM watchlist
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM components
+      WHERE components.cas_no_candidate = watchlist.cas_no
+    )
+    AND NOT EXISTS (
+      SELECT 1
+      FROM regulatory_matches
+      WHERE regulatory_matches.cas_no = watchlist.cas_no
+    )
+  `).run();
 }
 
 export function listDocuments(db: Database.Database): DocumentSummary[] {
