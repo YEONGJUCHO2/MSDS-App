@@ -840,6 +840,7 @@ th {
 .site-management-layout {
   display: grid;
   grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+  align-items: start;
   gap: 12px;
 }
 
