@@ -839,7 +839,7 @@ th {
 
 .site-management-layout {
   display: grid;
-  grid-template-columns: minmax(220px, 0.36fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
   align-items: start;
   gap: 12px;
 }
@@ -866,14 +866,18 @@ th {
 }
 
 .site-slot-list {
-  display: grid;
-  align-content: start;
+  display: flex;
+  align-items: stretch;
   gap: 8px;
   min-width: 0;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: thin;
 }
 
 .site-slot {
   display: grid;
+  flex: 0 0 clamp(160px, 22vw, 220px);
   gap: 3px;
   min-width: 0;
   padding: 10px;
