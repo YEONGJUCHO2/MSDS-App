@@ -69,4 +69,37 @@ describe("extractDocumentBasicInfo", () => {
       "최종개정일자": "2013-04-01"
     });
   });
+
+  it("maps section 1 label blocks where labels and values are split across lines", () => {
+    const fields = extractDocumentBasicInfo({
+      fileName: "실리콘MSDS_707_백색.pdf",
+      queueCount: 0,
+      textContent: [
+        "개정일 : 2013년 7월 1일",
+        "품명 : BIO 707 백색",
+        "1. 화학제품과 회사에 관한 정보",
+        "제품명 :",
+        "제품의 권고 용도와 사용상의 제한 :",
+        "제조-공급자 정보",
+        "◦ 제조-공급회사명 :",
+        "◦ 주소 :",
+        "◦ 긴급연락전화번호 :",
+        "BIO 707 백색",
+        "실링재",
+        "다우실란트산업㈜ 화성지점",
+        "경기도 화성시 팔탄면 하저길 83",
+        "031-357-5181 / 02-838-3556",
+        "2. 유해, 위험성"
+      ].join("\n")
+    });
+
+    expect(Object.fromEntries(fields.map((field) => [field.label, field.value]))).toMatchObject({
+      "공급사": "다우실란트산업㈜ 화성지점",
+      "제조사": "다우실란트산업㈜ 화성지점",
+      "대표전화": "031-357-5181",
+      "제품명": "BIO 707 백색",
+      "용도": "실링재",
+      "최종개정일자": "2013-07-01"
+    });
+  });
 });

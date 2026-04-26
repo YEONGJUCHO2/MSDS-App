@@ -22,6 +22,7 @@ describe("processing pipeline", () => {
 
     expect(result.status).toBe("needs_review");
     expect(result.componentRows).toHaveLength(1);
+    expect(result.message).toBe("1개 성분 후보를 사내 입력 포맷에 반영했습니다. 추가 확인이 필요한 항목은 없습니다.");
     expect(db.prepare("SELECT COUNT(*) AS count FROM review_queue").get()).toEqual({ count: 0 });
   });
 

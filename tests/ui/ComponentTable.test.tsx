@@ -58,6 +58,37 @@ describe("ComponentTable", () => {
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("1344-28-1\t산화알루미늄\t1\t5\t"));
   });
 
+  it("shows feedback instead of throwing a console error when clipboard write is denied", async () => {
+    const writeText = vi.fn().mockRejectedValue(new DOMException("Write permission denied.", "NotAllowedError"));
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+
+    render(
+      <ComponentTable
+        rows={[
+          {
+            rowId: "row-1",
+            rowIndex: 0,
+            rawRowText: "물 7732-18-5 1~2",
+            casNoCandidate: "7732-18-5",
+            chemicalNameCandidate: "Water",
+            contentMinCandidate: "1",
+            contentMaxCandidate: "2",
+            contentSingleCandidate: "",
+            contentText: "1~2",
+            confidence: 0.9,
+            evidenceLocation: "수동 추가",
+            reviewStatus: "edited",
+            regulatoryMatches: []
+          }
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "전체 복사" }));
+
+    await waitFor(() => expect(screen.getByText("브라우저가 클립보드 복사를 허용하지 않았습니다. 표를 직접 선택해 복사해주세요.")).toBeInTheDocument());
+  });
+
   it("separates official lookup-only rows from exportable regulatory hits", () => {
     render(
       <ComponentTable

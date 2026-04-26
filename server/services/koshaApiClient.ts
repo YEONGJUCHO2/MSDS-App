@@ -9,7 +9,7 @@ export interface OfficialChemicalMatch {
   evidenceText: string;
 }
 
-type Fetcher = (url: string) => Promise<{ ok: boolean; text(): Promise<string>; status?: number }>;
+type Fetcher = (url: string, init?: { signal?: AbortSignal }) => Promise<{ ok: boolean; text(): Promise<string>; status?: number }>;
 
 export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: string, fetcher: Fetcher = fetch, options: { forceRefresh?: boolean } = {}) {
   const cached = getChemicalApiCache(db, "kosha", casNo);
@@ -27,7 +27,20 @@ export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: stri
   }
 
   const url = buildKoshaUrl(endpoint, serviceKey, casNo);
-  const response = await fetcher(url.toString());
+  let response: Awaited<ReturnType<Fetcher>>;
+  try {
+    response = await fetchWithTimeout(url.toString(), fetcher, "KOSHA API");
+  } catch (error) {
+    upsertChemicalApiCache(db, {
+      provider: "kosha",
+      casNo,
+      requestUrl: url.toString(),
+      responseText: error instanceof Error ? error.message : "lookup failed",
+      status: error instanceof Error && error.message.includes("timed out") ? "timeout" : "network_error",
+      ttlDays: 1
+    });
+    throw error;
+  }
   const responseText = await response.text();
   if (!response.ok) {
     upsertChemicalApiCache(db, {
@@ -53,6 +66,30 @@ export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: stri
     cacheStatus: "miss" as const,
     matches: parseKoshaResponse(casNo, responseText, url.toString())
   };
+}
+
+function officialApiTimeoutMs() {
+  const timeoutMs = Number(process.env.OFFICIAL_API_TIMEOUT_MS || 8_000);
+  return Number.isFinite(timeoutMs) && timeoutMs > 0 ? timeoutMs : 8_000;
+}
+
+async function fetchWithTimeout(url: string, fetcher: Fetcher, label: string) {
+  const controller = new AbortController();
+  const timeoutMs = officialApiTimeoutMs();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      fetcher(url, { signal: controller.signal }),
+      new Promise<Awaited<ReturnType<Fetcher>>>((_, reject) => {
+        timeout = setTimeout(() => {
+          controller.abort();
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 export function isOfficialApiConfigured() {

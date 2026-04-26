@@ -28,13 +28,14 @@ const fieldOrder: Array<{ key: string; label: string }> = [
 export function extractDocumentBasicInfo(input: BasicInfoInput) {
   const text = input.textContent.replace(/\r/g, "\n");
   const normalizedFileName = normalizeUploadedFileName(input.fileName);
+  const sectionOneBlock = extractSectionOneLabelBlock(text);
   const values: Record<string, Omit<BasicInfoField, "key" | "label">> = {
-    supplier: value(extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "공급사", "공급자", "공급업체", "회사명"]), "msds_text"),
-    manufacturer: value(extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "제조사", "제조업체", "제조자"]), "msds_text"),
-    phone: value(extractPhone(text), "msds_text"),
+    supplier: value(sectionOneBlock.supplier || extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "공급사", "공급자", "공급업체", "회사명"]), "msds_text"),
+    manufacturer: value(sectionOneBlock.manufacturer || extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "제조사", "제조업체", "제조자"]), "msds_text"),
+    phone: value(sectionOneBlock.phone || extractPhone(text), "msds_text"),
     email: value(extractEmail(text), "msds_text"),
-    productName: value(extractByLabels(text, ["제품명", "제품의 명칭", "화학제품명"]) || stripPdf(normalizedFileName), "file_name"),
-    usage: value(extractByLabels(text, ["용도", "용 도", "제품의 권고 용도", "권고 용도"]), "msds_text"),
+    productName: value(sectionOneBlock.productName || extractByLabels(text, ["제품명", "제품의 명칭", "화학제품명"]) || stripPdf(normalizedFileName), "file_name"),
+    usage: value(sectionOneBlock.usage || extractByLabels(text, ["용도", "용 도", "제품의 권고 용도", "권고 용도"]), "msds_text"),
     itemCode: value("", "manual_required"),
     msdsNumber: value(extractMsdsNumber(text), "msds_text"),
     manufacturingType: value(extractManufacturingType(text), "msds_text"),
@@ -90,6 +91,54 @@ function findNextValue(lines: string[], startIndex: number) {
   return "";
 }
 
+function extractSectionOneLabelBlock(text: string) {
+  const lines = text.split("\n").map((line) => cleanupValue(stripLinePrefix(line))).filter(Boolean);
+  const startIndex = lines.findIndex((line) => /화학제품과\s*회사에\s*관한\s*정보/.test(line));
+  const scopedLines = startIndex >= 0 ? lines.slice(startIndex + 1) : lines;
+  const endIndex = scopedLines.findIndex((line) => /^2[.)]?\s*/.test(line) || /^2\.\s*/.test(line));
+  const sectionLines = (endIndex >= 0 ? scopedLines.slice(0, endIndex) : scopedLines).slice(0, 60);
+  const labels: Array<{ key: "productName" | "usage" | "supplier" | "address" | "phone"; index: number }> = [];
+
+  for (let index = 0; index < sectionLines.length; index += 1) {
+    const line = sectionLines[index];
+    if (/^제품명\s*[:：]?$/.test(line)) labels.push({ key: "productName", index });
+    if (/^제품의\s*권고\s*용도와\s*사용상의\s*제한\s*[:：]?$/.test(line) || /^권고\s*용도\s*[:：]?$/.test(line)) {
+      labels.push({ key: "usage", index });
+    }
+    if (/^(?:제조[-\s]*공급회사명|생산\s*및\s*공급\s*회사명)\s*[:：]?$/.test(line)) {
+      labels.push({ key: "supplier", index });
+    }
+    if (/^주소\s*[:：]?$/.test(line)) {
+      labels.push({ key: "address", index });
+    }
+    if (/^(?:긴급연락전화번호|정보\s*제공\s*및\s*긴급연락\s*전화번호|전화번호)\s*[:：]?$/.test(line)) {
+      labels.push({ key: "phone", index });
+    }
+  }
+
+  if (labels.length < 2) return {};
+
+  const valueStart = Math.max(...labels.map((label) => label.index)) + 1;
+  const valueLines = sectionLines.slice(valueStart).filter((line) => !looksLikeLabelOnly(line) && !looksLikeSectionTitle(line));
+  const mapped: Partial<Record<"productName" | "usage" | "supplier" | "manufacturer" | "phone", string>> = {};
+
+  labels
+    .sort((left, right) => left.index - right.index)
+    .forEach((label, offset) => {
+      const nextValue = valueLines[offset];
+      if (!nextValue) return;
+      if (label.key === "address") return;
+      if (label.key === "phone") {
+        mapped.phone = nextValue.match(/[0-9]{2,4}[-)\s][0-9]{3,4}[-\s][0-9]{4}/)?.[0] ?? nextValue;
+        return;
+      }
+      mapped[label.key] = nextValue;
+      if (label.key === "supplier") mapped.manufacturer = nextValue;
+    });
+
+  return mapped;
+}
+
 function extractPhone(text: string) {
   return text.match(/(?:대표전화|전화(?:번호)?|TEL|Tel\.?)\s*[:：]?\s*([0-9]{2,4}[-)\s][0-9]{3,4}[-\s][0-9]{4})/i)?.[1]?.trim() ?? "";
 }
@@ -105,6 +154,8 @@ function extractMsdsNumber(text: string) {
 function extractRevisionDate(text: string) {
   const labeled = text.match(/(?:최종\s*개정\s*일자|최종개정일자|개정일자|작성일자|개정일)\s*[:：]?\s*(\d{4}[./-]\d{1,2}[./-]\d{1,2})/i)?.[1] ?? "";
   if (labeled) return normalizeDate(labeled);
+  const koreanDate = text.match(/(?:최종\s*개정\s*일자|최종개정일자|개정일자|작성일자|개정일)\s*[:：]?\s*(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/i);
+  if (koreanDate) return normalizeDate(`${koreanDate[1]}-${koreanDate[2]}-${koreanDate[3]}`);
   const nearRevision = text.match(/(?:개정|Revision|Rev)[^\d]{0,20}(\d{4}[./-]\d{1,2}[./-]\d{1,2})/i)?.[1] ?? "";
   return normalizeDate(nearRevision);
 }
@@ -131,8 +182,17 @@ function stripLinePrefix(line: string) {
 }
 
 function looksLikeLabelOnly(valueText: string) {
-  return /^(제품명|공급사|제조사|용도|작성일자|개정일자|전화|주소)$/i.test(valueText)
+  return /^(제품명|공급사|제조사|용도|작성일자|개정일자|전화|주소)\s*[:：]?$/i.test(valueText)
+    || /^제품의\s*권고\s*용도와\s*사용상의\s*제한\s*[:：]?$/i.test(valueText)
+    || /^제조[-\s]*공급회사명\s*[:：]?$/i.test(valueText)
+    || /^긴급연락전화번호\s*[:：]?$/i.test(valueText)
     || /유통정보$/.test(valueText);
+}
+
+function looksLikeSectionTitle(valueText: string) {
+  return /^\d+(?:-\d+)?[.)]?\s+/.test(valueText)
+    || /^[가-하]\.\s*/.test(valueText)
+    || /정보$/.test(valueText);
 }
 
 function normalizeDate(valueText: string) {

@@ -7,6 +7,8 @@ describe("KOSHA MSDS API client", () => {
   afterEach(() => {
     delete process.env.KOSHA_MSDS_API_URL;
     delete process.env.KOSHA_API_SERVICE_KEY;
+    delete process.env.OFFICIAL_API_TIMEOUT_MS;
+    vi.useRealTimers();
   });
 
   it("normalizes the public data.go.kr endpoint, parses XML, and reuses SQLite cache", async () => {
@@ -49,6 +51,24 @@ describe("KOSHA MSDS API client", () => {
     expect(second.cacheStatus).toBe("hit");
     expect(db.prepare("SELECT provider, cas_no AS casNo, status FROM chemical_api_cache").all()).toEqual([
       { provider: "kosha", casNo: "12604-53-4", status: "ok" }
+    ]);
+  });
+
+  it("times out slow official API requests and caches the timeout status", async () => {
+    vi.useFakeTimers();
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KOSHA_MSDS_API_URL = "https://apis.data.go.kr/B552468/msdschem";
+    process.env.KOSHA_API_SERVICE_KEY = "service-key";
+    process.env.OFFICIAL_API_TIMEOUT_MS = "25";
+    const fetcher = vi.fn().mockReturnValue(new Promise(() => undefined));
+
+    const lookup = expect(lookupKoshaChemicalInfo(db, "12604-53-4", fetcher)).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(25);
+
+    await lookup;
+    expect(db.prepare("SELECT provider, cas_no AS casNo, status FROM chemical_api_cache").all()).toEqual([
+      { provider: "kosha", casNo: "12604-53-4", status: "timeout" }
     ]);
   });
 });

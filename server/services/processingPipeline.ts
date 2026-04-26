@@ -44,11 +44,19 @@ export async function processExtractedText(
   insertComponentRows(db, activeDocumentId, componentRows);
   await matchAndStoreRegulatoryData(db, activeDocumentId, componentRows);
   upsertDocumentText(db, activeDocumentId, input.text, input.pageCount, "needs_review");
+  const queueCount = (db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM review_queue
+    WHERE document_id = ?
+      AND review_status = 'needs_review'
+  `).get(activeDocumentId) as { count: number }).count;
 
   return {
     documentId: activeDocumentId,
     status: "needs_review" as const,
     componentRows,
-    message: `${componentRows.length}개 성분 후보 중 확인이 필요한 항목을 큐에 등록했습니다.`
+    message: queueCount > 0
+      ? `${componentRows.length}개 성분 후보를 추출했고, 확인이 필요한 ${queueCount}개 항목을 큐에 등록했습니다.`
+      : `${componentRows.length}개 성분 후보를 사내 입력 포맷에 반영했습니다. 추가 확인이 필요한 항목은 없습니다.`
   };
 }

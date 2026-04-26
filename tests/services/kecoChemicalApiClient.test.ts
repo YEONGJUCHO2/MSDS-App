@@ -8,6 +8,8 @@ describe("KECO chemical API client", () => {
   afterEach(() => {
     delete process.env.KECO_CHEM_API_URL;
     delete process.env.KECO_API_SERVICE_KEY;
+    delete process.env.OFFICIAL_API_TIMEOUT_MS;
+    vi.useRealTimers();
   });
 
   it("fetches by CAS No. once and reuses SQLite cache on the next lookup", async () => {
@@ -129,5 +131,23 @@ describe("KECO chemical API client", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(result.cacheStatus).toBe("miss");
     expect(result.matches).toHaveLength(1);
+  });
+
+  it("times out slow official API requests and caches the timeout status", async () => {
+    vi.useFakeTimers();
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KECO_CHEM_API_URL = "https://example.test/keco";
+    process.env.KECO_API_SERVICE_KEY = "service-key";
+    process.env.OFFICIAL_API_TIMEOUT_MS = "25";
+    const fetcher = vi.fn().mockReturnValue(new Promise(() => undefined));
+
+    const lookup = expect(lookupKecoChemicalInfo(db, "67-64-1", fetcher)).rejects.toThrow("timed out");
+    await vi.advanceTimersByTimeAsync(25);
+
+    await lookup;
+    expect(db.prepare("SELECT provider, cas_no AS casNo, status FROM chemical_api_cache").all()).toEqual([
+      { provider: "keco", casNo: "67-64-1", status: "timeout" }
+    ]);
   });
 });

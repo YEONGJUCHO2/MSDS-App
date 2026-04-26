@@ -34,10 +34,17 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
   const [addDraft, setAddDraft] = useState<ComponentCandidatePayload>(blankCandidate);
   const [recheckAfterSave, setRecheckAfterSave] = useState(false);
   const [formError, setFormError] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState("");
   const [saving, setSaving] = useState(false);
 
-  function copyAllRows() {
-    void navigator.clipboard?.writeText(formatComponentRowsAsTsv(rows));
+  async function copyAllRows() {
+    setCopyFeedback("");
+    try {
+      await navigator.clipboard?.writeText(formatComponentRowsAsTsv(rows));
+      setCopyFeedback("사내 입력 포맷을 클립보드에 복사했습니다.");
+    } catch {
+      setCopyFeedback("브라우저가 클립보드 복사를 허용하지 않았습니다. 표를 직접 선택해 복사해주세요.");
+    }
   }
 
   function startEdit(row: Section3Row) {
@@ -115,6 +122,7 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
       {hasOfficialOnlyMatches && exportHitCount === 0 ? (
         <p className="lookup-feedback">공식 정보 조회만 된 항목은 사내 입력 컬럼에 표시하지 않습니다.</p>
       ) : null}
+      {copyFeedback ? <p className="lookup-feedback compact">{copyFeedback}</p> : null}
       <div className="table-shell">
         <table className="component-export-table">
           <thead>
