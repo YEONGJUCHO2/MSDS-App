@@ -15,10 +15,26 @@ export function ReviewPage({ documents, onDeleteDocument }: { documents: Documen
 
   useEffect(() => {
     if (!selectedId) return;
-    void Promise.all([api.components(selectedId), api.documentBasicInfo(selectedId)]).then(([componentResult, basicInfoResult]) => {
-      setRows(componentResult.rows);
-      setBasicInfoFields(basicInfoResult.fields);
-    });
+    let active = true;
+    setRows([]);
+    setBasicInfoFields([]);
+    void api.components(selectedId)
+      .then((componentResult) => {
+        if (active) setRows(componentResult.rows);
+      })
+      .catch(() => {
+        if (active) setRows([]);
+      });
+    void api.documentBasicInfo(selectedId)
+      .then((basicInfoResult) => {
+        if (active) setBasicInfoFields(basicInfoResult.fields);
+      })
+      .catch(() => {
+        if (active) setBasicInfoFields([]);
+      });
+    return () => {
+      active = false;
+    };
   }, [selectedId]);
 
   useEffect(() => {
