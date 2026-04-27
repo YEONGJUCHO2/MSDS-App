@@ -260,7 +260,7 @@ describe("regulatory matcher", () => {
       { rowId: "row-1", casNoCandidate: "", chemicalNameCandidate: "산화 알루미늄" }
     ]);
 
-    expect(result).toEqual([{ rowId: "row-1", seedMatches: 0, apiMatches: 1, status: "official_api_matched" }]);
+    expect(result).toEqual([{ rowId: "row-1", seedMatches: 0, apiMatches: 2, status: "official_api_matched" }]);
     expect(db.prepare("SELECT cas_no_candidate AS casNoCandidate, regulatory_match_status AS regulatoryMatchStatus FROM components").get()).toEqual({
       casNoCandidate: "1344-28-1",
       regulatoryMatchStatus: "official_api_matched"
@@ -269,8 +269,9 @@ describe("regulatory matcher", () => {
       aiReviewStatus: "ai_candidate",
       aiReviewNote: "물질명으로 CAS No.를 자동 보강했고 공식 API 조회가 완료되었습니다."
     });
-    expect(db.prepare("SELECT cas_no AS casNo, source_type AS sourceType FROM regulatory_matches").all()).toEqual([
-      { casNo: "1344-28-1", sourceType: "official_api" }
+    expect(db.prepare("SELECT cas_no AS casNo, category, source_type AS sourceType FROM regulatory_matches ORDER BY category").all()).toEqual([
+      { casNo: "1344-28-1", category: "chemicalInfoLookup", sourceType: "official_api" },
+      { casNo: "1344-28-1", category: "existingChemical", sourceType: "official_api" }
     ]);
   });
 

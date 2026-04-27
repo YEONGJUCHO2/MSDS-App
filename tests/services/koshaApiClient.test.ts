@@ -55,6 +55,31 @@ describe("KOSHA MSDS API client", () => {
     ]);
   });
 
+  it("keeps only exact CAS matches from KOSHA partial-search responses", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KOSHA_MSDS_API_URL = "https://apis.data.go.kr/B552468/msdschem";
+    process.env.KOSHA_API_SERVICE_KEY = "service-key";
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<response><body><items>",
+        "<item><casNo>96-29-7</casNo><chemNameKor>2-부타논 옥심</chemNameKor><keNo>KE-03881</keNo></item>",
+        "<item><casNo>696-29-7</casNo><chemNameKor>Isopropylcyclohexane</chemNameKor><keNo>KE-21685</keNo></item>",
+        "</items></body></response>"
+      ].join("")
+    });
+
+    const result = await lookupKoshaChemicalInfo(db, "96-29-7", fetcher);
+
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0]).toMatchObject({
+      casNo: "96-29-7",
+      evidenceText: expect.not.stringContaining("696-29-7")
+    });
+  });
+
   it("times out slow official API requests and caches the timeout status", async () => {
     vi.useFakeTimers();
     const db = new Database(":memory:");

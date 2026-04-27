@@ -229,6 +229,11 @@ function mapKecoClassificationToInternalCategory(classificationName: string) {
   if (normalized.includes("제한물질")) return "restricted";
   if (normalized.includes("금지물질")) return "prohibited";
   if (normalized.includes("허가물질")) return "permitted";
+  if (normalized.includes("중점관리물질")) return "priorityControl";
+  if (normalized.includes("등록대상기존화학물질")) return "registrationTargetExistingChemical";
+  if (normalized.includes("암,돌연변이성물질") || normalized.includes("암돌연변이성물질")) return "cmrExistingChemical";
+  if (normalized.includes("잔류성오염물질")) return "persistentOrganicPollutant";
+  if (normalized.includes("기존화학물질")) return "existingChemical";
   if (normalized.includes("유독물질") || normalized.includes("인체등유해성물질") || normalized.includes("생태등유해성물질")) return "toxic";
   return "";
 }

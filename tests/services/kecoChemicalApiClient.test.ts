@@ -167,6 +167,42 @@ describe("KECO chemical API client", () => {
     ]));
   });
 
+  it("maps K-REACH integrated search classifications beyond toxic and restricted columns", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KECO_CHEM_API_URL = "https://example.test/keco";
+    process.env.KECO_API_SERVICE_KEY = "service-key";
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({
+        header: { resultCode: "200", resultMsg: "NORMAL SERVICE." },
+        body: {
+          items: [{
+            casNo: "11118-57-3",
+            sbstnNmKor: "크로뮴산화물",
+            typeList: [
+              { sbstnClsfTypeNm: "기존화학물질", unqNo: "KE-06004" },
+              { sbstnClsfTypeNm: "중점관리물질", unqNo: "별표-331", excpInfo: "CMR" },
+              { sbstnClsfTypeNm: "암, 돌연변이성물질 등", unqNo: "7" },
+              { sbstnClsfTypeNm: "등록대상기존화학물질", unqNo: "131" },
+              { sbstnClsfTypeNm: "잔류성오염물질", unqNo: "POPs-1" }
+            ]
+          }]
+        }
+      })
+    });
+
+    const result = await lookupKecoChemicalInfo(db, "11118-57-3", fetcher);
+
+    expect(result.matches).toEqual(expect.arrayContaining([
+      expect.objectContaining({ category: "existingChemical", evidenceText: expect.stringContaining("기존화학물질") }),
+      expect.objectContaining({ category: "priorityControl", evidenceText: expect.stringContaining("중점관리물질") }),
+      expect.objectContaining({ category: "cmrExistingChemical", evidenceText: expect.stringContaining("암, 돌연변이성물질 등") }),
+      expect.objectContaining({ category: "registrationTargetExistingChemical", evidenceText: expect.stringContaining("등록대상기존화학물질") }),
+      expect.objectContaining({ category: "persistentOrganicPollutant", evidenceText: expect.stringContaining("잔류성오염물질") })
+    ]));
+  });
+
   it("times out slow official API requests and caches the timeout status", async () => {
     vi.useFakeTimers();
     const db = new Database(":memory:");

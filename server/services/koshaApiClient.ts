@@ -129,8 +129,9 @@ function parseKoshaResponse(casNo: string, responseText: string, sourceUrl: stri
   const items = extractXmlItems(trimmed);
   if (items.length === 0) return [];
 
-  return items.map((item) => {
+  return items.flatMap((item) => {
     const parsedCasNo = readXmlValue(item, "casNo") || casNo;
+    if (normalizeCasNo(parsedCasNo) !== normalizeCasNo(casNo)) return [];
     const evidenceParts = [
       readXmlValue(item, "chemNameKor"),
       parsedCasNo,
@@ -146,6 +147,10 @@ function parseKoshaResponse(casNo: string, responseText: string, sourceUrl: stri
       evidenceText: evidenceParts.length > 0 ? evidenceParts.join(" / ") : item.slice(0, 1000)
     };
   });
+}
+
+function normalizeCasNo(value: string) {
+  return value.replace(/\s+/g, "").toLowerCase();
 }
 
 function extractXmlItems(text: string) {

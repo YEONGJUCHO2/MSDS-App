@@ -19,7 +19,12 @@ export const REGULATORY_COMPONENT_EXPORT_COLUMNS = [
   { key: "restricted", label: "제한물질", categories: ["restricted", "restrictedSubstance"] },
   { key: "permitted", label: "허가물질", categories: ["permitted", "permittedSubstance"] },
   { key: "toxic", label: "유독물질", categories: ["toxic", "toxicSubstance"] },
-  { key: "accidentPreparedness", label: "사고대비물질", categories: ["accidentPreparedness", "accidentPreparednessSubstance"] }
+  { key: "accidentPreparedness", label: "사고대비물질", categories: ["accidentPreparedness", "accidentPreparednessSubstance"] },
+  { key: "priorityControl", label: "중점관리물질", categories: ["priorityControl", "priorityControlSubstance"] },
+  { key: "registrationTargetExistingChemical", label: "등록대상기존화학물질", categories: ["registrationTargetExistingChemical"] },
+  { key: "cmrExistingChemical", label: "암/돌연변이성물질", categories: ["cmrExistingChemical"] },
+  { key: "existingChemical", label: "기존화학물질", categories: ["existingChemical"] },
+  { key: "persistentOrganicPollutant", label: "잔류성오염물질", categories: ["persistentOrganicPollutant", "persistentOrganicPollutantSubstance"] }
 ] as const;
 
 export type RegulatoryComponentExportColumn = (typeof REGULATORY_COMPONENT_EXPORT_COLUMNS)[number];
@@ -96,7 +101,7 @@ function hasHangul(value: string) {
 }
 
 function looksLikeClassificationName(value: string) {
-  return /(유해성물질|제한물질|금지물질|허가물질|사고대비물질|관리대상|특별관리|노출기준|허용기준)/.test(value);
+  return /(유해성물질|제한물질|금지물질|허가물질|사고대비물질|관리대상|특별관리|노출기준|허용기준|중점관리|등록대상|기존화학물질|돌연변이성물질|잔류성오염)/.test(value);
 }
 
 function escapeTsvCell(value: string) {

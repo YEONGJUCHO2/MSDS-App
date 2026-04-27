@@ -44,7 +44,12 @@ describe("component export format", () => {
       "제한물질",
       "허가물질",
       "유독물질",
-      "사고대비물질"
+      "사고대비물질",
+      "중점관리물질",
+      "등록대상기존화학물질",
+      "암/돌연변이성물질",
+      "기존화학물질",
+      "잔류성오염물질"
     ];
 
     expect(formatComponentForClipboard(row)).toBe([
@@ -64,6 +69,11 @@ describe("component export format", () => {
         "Y",
         "",
         "Y",
+        "",
+        "",
+        "",
+        "",
+        "",
         "",
         "",
         "",
@@ -98,6 +108,39 @@ describe("component export format", () => {
 
     expect(values[15]).toBe("Y");
     expect(values[17]).toBe("Y");
+  });
+
+  it("exports K-REACH integrated classifications into their own columns", () => {
+    const row: Section3Row = {
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Chromium oxide 11118-57-3",
+      casNoCandidate: "11118-57-3",
+      chemicalNameCandidate: "Chromium oxide",
+      contentMinCandidate: "",
+      contentMaxCandidate: "",
+      contentSingleCandidate: "",
+      contentText: "",
+      confidence: 0.92,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review",
+      regulatoryMatches: [
+        match("priorityControl", "공식 API 조회됨", "중점관리물질 / 별표-331"),
+        match("registrationTargetExistingChemical", "공식 API 조회됨", "등록대상기존화학물질 / 131"),
+        match("cmrExistingChemical", "공식 API 조회됨", "암, 돌연변이성물질 등 / 7"),
+        match("existingChemical", "공식 API 조회됨", "기존화학물질 / KE-06004"),
+        match("persistentOrganicPollutant", "공식 API 조회됨", "잔류성오염물질 / POPs-1")
+      ]
+    };
+
+    const headers = formatComponentForClipboard(row).split("\n")[0].split("\t");
+    const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
+
+    expect(values[headers.indexOf("중점관리물질")]).toBe("Y");
+    expect(values[headers.indexOf("등록대상기존화학물질")]).toBe("Y");
+    expect(values[headers.indexOf("암/돌연변이성물질")]).toBe("Y");
+    expect(values[headers.indexOf("기존화학물질")]).toBe("Y");
+    expect(values[headers.indexOf("잔류성오염물질")]).toBe("Y");
   });
 
   it("uses Korean official chemical names in the internal input format when available", () => {
