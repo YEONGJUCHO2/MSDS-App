@@ -2,13 +2,14 @@ import { ClipboardList, Database, FileDiff, Gauge, ListChecks, Upload, Watch } f
 import { useEffect, useState } from "react";
 import type { DocumentSummary, ReviewQueueItem } from "../shared/types";
 import { api } from "./api/client";
+import { useUploadTask } from "./hooks/useUploadTask";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { QueuesPage } from "./pages/QueuesPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { RevisionDiffPage } from "./pages/RevisionDiffPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
-import { UploadPage } from "./pages/UploadPage";
+import { UploadPage, UploadTaskFeedback } from "./pages/UploadPage";
 import { WatchlistPage } from "./pages/WatchlistPage";
 
 const navItems = [
@@ -25,6 +26,7 @@ export default function App() {
   const [page, setPage] = useState("dashboard");
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [queueItems, setQueueItems] = useState<ReviewQueueItem[]>([]);
+  const upload = useUploadTask(() => void refresh());
 
   async function refresh() {
     const [documentResult, queueResult] = await Promise.all([api.documents(), api.queues()]);
@@ -61,8 +63,13 @@ export default function App() {
         ))}
       </nav>
       <div className="content" data-testid="app-content">
+        {page !== "upload" && (upload.task.busy || upload.task.message) ? (
+          <div className="global-upload-status">
+            <UploadTaskFeedback task={upload.task} />
+          </div>
+        ) : null}
         {page === "dashboard" ? <DashboardPage documents={documents} queueItems={queueItems} onDeleteDocument={(documentId) => void handleDeleteDocument(documentId)} onNavigate={setPage} /> : null}
-        {page === "upload" ? <UploadPage onUploaded={() => void refresh()} /> : null}
+        {page === "upload" ? <UploadPage uploadTask={upload.task} onFilesSelected={upload.startUpload} /> : null}
         {page === "review" ? <ReviewPage documents={documents} onDeleteDocument={(documentId) => void handleDeleteDocument(documentId)} /> : null}
         {page === "queues" ? <QueuesPage items={queueItems} /> : null}
         {page === "products" ? <ProductsPage /> : null}

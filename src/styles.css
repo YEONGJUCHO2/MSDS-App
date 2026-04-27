@@ -254,6 +254,14 @@ select {
   background: #ffffff;
 }
 
+.global-upload-status {
+  margin-bottom: 16px;
+}
+
+.global-upload-status .upload-progress-panel {
+  margin-top: 0;
+}
+
 .upload-progress-title {
   display: flex;
   align-items: center;
