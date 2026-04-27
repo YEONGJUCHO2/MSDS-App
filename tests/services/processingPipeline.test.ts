@@ -85,6 +85,25 @@ describe("processing pipeline", () => {
     ]);
   });
 
+  it("marks readable PDFs that yield no component rows as manual review instead of success", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    const result = await processExtractedText(db, {
+      documentId: "doc-empty",
+      fileName: "broken-text-layer.pdf",
+      text: Array.from({ length: 12 }, (_, index) => `제품명 DR.99 ${index} Date of issue: 2005-02-23 Revision date: 2025-08-08 Version: 11 자료없음`).join("\n"),
+      pageCount: 9
+    });
+
+    expect(result).toMatchObject({
+      documentId: "doc-empty",
+      status: "manual_input_required",
+      componentRows: [],
+      message: "성분 후보를 자동 추출하지 못했습니다. PDF 텍스트/표 구조를 확인하거나 수동 입력이 필요합니다."
+    });
+    expect(db.prepare("SELECT status FROM documents WHERE document_id = ?").get("doc-empty")).toEqual({ status: "manual_input_required" });
+  });
+
   it("automatically stores official API classifications during upload processing", async () => {
     const db = new Database(":memory:");
     migrate(db);

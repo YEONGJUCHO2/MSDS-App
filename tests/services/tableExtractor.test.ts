@@ -69,4 +69,72 @@ describe("table extractor", () => {
       }
     ]);
   });
+
+  it("extracts Korean section 3 rows that omit CAS numbers", () => {
+    const text = [
+      "3. 구성성분의 명칭 및 함유량(Composion Information on Ingredents)",
+      "물질명 함유량(%)",
+      "산화 알루미늄 20~30",
+      "산화규소(비결정체 규조토) 65~75",
+      "산화 철(IRON OXIDE) 1~5",
+      "기타 1~5",
+      "4. 응급조치 요령(First-aid Measures)"
+    ].join("\n");
+
+    expect(extractSection3Rows(text)).toMatchObject([
+      {
+        chemicalNameCandidate: "산화 알루미늄",
+        casNoCandidate: "",
+        contentMinCandidate: "20",
+        contentMaxCandidate: "30"
+      },
+      {
+        chemicalNameCandidate: "산화규소(비결정체 규조토)",
+        casNoCandidate: "",
+        contentMinCandidate: "65",
+        contentMaxCandidate: "75"
+      },
+      {
+        chemicalNameCandidate: "산화 철(IRON OXIDE)",
+        casNoCandidate: "",
+        contentMinCandidate: "1",
+        contentMaxCandidate: "5"
+      }
+    ]);
+  });
+
+  it("keeps section 3 rows when PDF text places the table before its heading", () => {
+    const text = [
+      "4. 응급조치 요령",
+      "(1E)-1-Chloro-3,3,3-trifluoro-1-",
+      "propene 자료없음 102687-65-0 / 2015-3-6349 70 ~ 80",
+      "Hexadecafluoroheptane 자료없음 335-57-9 / KE-18431 20 ~ 30",
+      "질소 나이트로젠, 엘리멘탈 ; 다이아진 ; 다이나이트로젠 ;",
+      "다이아토믹 나이트로젠 7727-37-9 / KE-25994 0 ~ 1",
+      "3. 구성성분의 명칭 및 함유량",
+      "화학물질명 관용명 및 이명 CAS 번호 또는 식별번호 함유량(%)",
+      "-- 2 of 10 --"
+    ].join("\n");
+
+    expect(extractSection3Rows(text)).toMatchObject([
+      {
+        chemicalNameCandidate: "(1E)-1-Chloro-3,3,3-trifluoro-1- propene 자료없음",
+        casNoCandidate: "102687-65-0",
+        contentMinCandidate: "70",
+        contentMaxCandidate: "80"
+      },
+      {
+        chemicalNameCandidate: "Hexadecafluoroheptane 자료없음",
+        casNoCandidate: "335-57-9",
+        contentMinCandidate: "20",
+        contentMaxCandidate: "30"
+      },
+      {
+        chemicalNameCandidate: "질소 나이트로젠, 엘리멘탈 ; 다이아진 ; 다이나이트로젠 ; 다이아토믹 나이트로젠",
+        casNoCandidate: "7727-37-9",
+        contentMinCandidate: "0",
+        contentMaxCandidate: "1"
+      }
+    ]);
+  });
 });

@@ -57,6 +57,17 @@ export async function processExtractedTextWithRepository(
     ...row,
     rowId: row.rowId ?? nanoid()
   }));
+
+  if (componentRows.length === 0) {
+    await repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, "manual_input_required");
+    return {
+      documentId: activeDocumentId,
+      status: "manual_input_required" as const,
+      componentRows,
+      message: "성분 후보를 자동 추출하지 못했습니다. PDF 텍스트/표 구조를 확인하거나 수동 입력이 필요합니다."
+    };
+  }
+
   await repo.insertComponentRows(activeDocumentId, componentRows);
   await matchAndStoreRegulatoryData(db, activeDocumentId, componentRows);
   await repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, "needs_review");
