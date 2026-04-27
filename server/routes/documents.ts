@@ -18,6 +18,7 @@ import {
 import { normalizeUploadedFileName } from "../services/fileName";
 import { extractDocumentBasicInfo } from "../services/basicInfoExtractor";
 import { createConfiguredAiAdapter, resolveAiProvider } from "../services/aiProvider";
+import { createOcrAdapter } from "../services/ocrAdapter";
 import { extractPdfText } from "../services/pdfExtractor";
 import { processExtractedText } from "../services/processingPipeline";
 import { recheckComponentRegulatoryData } from "../services/regulatoryMatcher";
@@ -285,7 +286,9 @@ documentsRouter.post("/upload", upload.single("file"), async (req, res, next) =>
       fileHash: stored.fileHash,
       storagePath: stored.storagePath,
       text: extracted.text,
-      pageCount: extracted.pageCount
+      pageCount: extracted.pageCount,
+      pdfBuffer: req.file.buffer,
+      ocrAdapter: createUploadOcrAdapter()
     });
 
     res.json(result);
@@ -373,11 +376,17 @@ async function processUploadedFile(file: Express.Multer.File) {
     fileHash: stored.fileHash,
     storagePath: stored.storagePath,
     text: extracted.text,
-    pageCount: extracted.pageCount
+    pageCount: extracted.pageCount,
+    pdfBuffer: file.buffer,
+    ocrAdapter: createUploadOcrAdapter()
   });
 
   return {
     fileName,
     ...result
   };
+}
+
+function createUploadOcrAdapter() {
+  return createOcrAdapter({ enabled: process.env.MSDS_OCR_ENABLED !== "false" });
 }

@@ -137,4 +137,24 @@ describe("table extractor", () => {
       }
     ]);
   });
+
+  it("falls back to known OCR chemical names when section 3 text is noisy", () => {
+    const text = [
+      "3. 구성성분의 명칭 및 함유량",
+      "-테트라플루오.    터",
+      "세 ㅣ   별  - ㅣ 66 ’ AEs Re sadn '",
+      "4. 응급조치 요령",
+      "8. 노출방지 및 개인보호구",
+      "- [1,1,1,2-테트라플루오로에테인]: 해당없음"
+    ].join("\n");
+
+    expect(extractSection3Rows(text)).toMatchObject([
+      {
+        chemicalNameCandidate: "1,1,1,2-테트라플루오로에테인",
+        casNoCandidate: "811-97-2",
+        contentText: "",
+        evidenceLocation: "OCR fallback / known chemical 1"
+      }
+    ]);
+  });
 });

@@ -1,4 +1,5 @@
 import type { Section3Row } from "../../shared/types";
+import { resolveCasNoFromChemicalName } from "./chemicalNameResolver";
 
 const casPattern = /\b\d{2,7}-\d{2}-\d\b/g;
 const concentrationPattern = /(?:<\s*)?\d+(?:\.\d+)?\s*(?:~|-|to)\s*\d+(?:\.\d+)?\s*%?|(?:<\s*)?\d+(?:\.\d+)?\s*%?/i;
@@ -66,7 +67,7 @@ export function extractSection3Rows(text: string): Section3Row[] {
     pendingNameLines = [];
   }
 
-  return rows;
+  return rows.length > 0 ? rows : extractKnownChemicalRowsFromOcrText(text, extractedSection.hasSectionHeader);
 }
 
 function extractSection3Text(text: string) {
@@ -202,4 +203,37 @@ function cleanChemicalNameLine(line: string) {
 function isConcentrationOnly(value: string) {
   const cleaned = value.replace(/%/g, "").replace(/\s+/g, "");
   return /^(?:<)?\d+(?:\.\d+)?(?:(?:~|-|to)\d+(?:\.\d+)?)?$/i.test(cleaned);
+}
+
+function extractKnownChemicalRowsFromOcrText(text: string, hasSection3Header: boolean): Section3Row[] {
+  if (!hasSection3Header) return [];
+  const names = new Map<string, string>();
+  for (const match of text.matchAll(/\[([^\]\n]{2,80})\]/g)) {
+    const name = cleanBracketedChemicalName(match[1]);
+    const casNo = resolveCasNoFromChemicalName(name);
+    if (casNo && !names.has(casNo)) {
+      names.set(casNo, name);
+    }
+  }
+
+  return Array.from(names.entries()).map(([casNoCandidate, chemicalNameCandidate], index) => ({
+    rowIndex: index,
+    rawRowText: `[${chemicalNameCandidate}]`,
+    casNoCandidate,
+    chemicalNameCandidate,
+    contentMinCandidate: "",
+    contentMaxCandidate: "",
+    contentSingleCandidate: "",
+    contentText: "",
+    confidence: 0.48,
+    evidenceLocation: `OCR fallback / known chemical ${index + 1}`,
+    reviewStatus: "needs_review"
+  }));
+}
+
+function cleanBracketedChemicalName(value: string) {
+  return value
+    .replace(/^\s*[-–—]\s*/, "")
+    .replace(/\s*[:：].*$/, "")
+    .trim();
 }

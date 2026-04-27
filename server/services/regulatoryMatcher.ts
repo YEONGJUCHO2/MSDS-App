@@ -4,6 +4,7 @@ import { deleteRegulatoryMatchesForRow, getComponentRow, insertRegulatoryMatch, 
 import { lookupRegulatoryCandidates } from "./regulatoryLookup";
 import { isKecoApiConfigured, lookupKecoChemicalInfo } from "./kecoChemicalApiClient";
 import { isOfficialApiConfigured, lookupKoshaChemicalInfo } from "./koshaApiClient";
+import { resolveCasNoFromChemicalName } from "./chemicalNameResolver";
 
 export async function matchAndStoreRegulatoryData(
   db: Database.Database,
@@ -180,19 +181,4 @@ function shouldClearMissingCasReview(db: Database.Database, rowId: string, resol
   if (resolvedFromName) return true;
   const row = getComponentRow(db, rowId);
   return row?.aiReviewStatus === "ai_needs_attention" && row.aiReviewNote.includes("CAS No. 누락");
-}
-
-function resolveCasNoFromChemicalName(chemicalName: string) {
-  const normalized = chemicalName.toLowerCase().replace(/\s+/g, "");
-  if (!normalized) return "";
-  if (normalized.includes("산화알루미늄") || normalized.includes("알루미늄산화물") || normalized.includes("aluminiumoxide") || normalized.includes("aluminumoxide") || normalized.includes("alumina")) {
-    return "1344-28-1";
-  }
-  if ((normalized.includes("산화규소") && normalized.includes("규조토")) || normalized.includes("diatomaceousearth") || normalized.includes("kieselguhr")) {
-    return "61790-53-2";
-  }
-  if (normalized.includes("산화철") || normalized.includes("ironoxide") || normalized.includes("burntsienna")) {
-    return "1332-37-2";
-  }
-  return "";
 }

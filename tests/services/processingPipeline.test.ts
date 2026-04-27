@@ -104,6 +104,65 @@ describe("processing pipeline", () => {
     expect(db.prepare("SELECT status FROM documents WHERE document_id = ?").get("doc-empty")).toEqual({ status: "manual_input_required" });
   });
 
+  it("uses OCR text when the PDF text layer is too short", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    const ocrAdapter = {
+      recognize: vi.fn().mockResolvedValue({
+        status: "ocr_completed" as const,
+        text: "3. 구성성분의 명칭 및 함유량\nAcetone 67-64-1 30~60\n4. 응급조치 요령",
+        confidence: 91,
+        message: "OCR 후보 텍스트를 생성했습니다."
+      })
+    };
+
+    const result = await processExtractedText(db, {
+      documentId: "doc-ocr",
+      fileName: "scan.pdf",
+      text: "too short",
+      pageCount: 5,
+      pdfBuffer: Buffer.from("pdf"),
+      ocrAdapter
+    });
+
+    expect(ocrAdapter.recognize).toHaveBeenCalledWith(Buffer.from("pdf"));
+    expect(result.status).toBe("needs_review");
+    expect(result.componentRows).toHaveLength(1);
+    expect(db.prepare("SELECT status, text_content AS textContent FROM documents WHERE document_id = ?").get("doc-ocr")).toEqual({
+      status: "needs_review",
+      textContent: "3. 구성성분의 명칭 및 함유량\nAcetone 67-64-1 30~60\n4. 응급조치 요령"
+    });
+  });
+
+  it("uses OCR as a fallback when the text layer has no component rows", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    const ocrAdapter = {
+      recognize: vi.fn().mockResolvedValue({
+        status: "ocr_completed" as const,
+        text: "3. 구성성분의 명칭 및 함유량\nToluene 108-88-3 10~20\n4. 응급조치 요령",
+        confidence: 88,
+        message: "OCR 후보 텍스트를 생성했습니다."
+      })
+    };
+
+    const result = await processExtractedText(db, {
+      documentId: "doc-broken-text",
+      fileName: "broken-text.pdf",
+      text: Array.from({ length: 12 }, (_, index) => `깨진 텍스트 ${index} 자료없음`).join("\n"),
+      pageCount: 4,
+      pdfBuffer: Buffer.from("pdf"),
+      ocrAdapter
+    });
+
+    expect(ocrAdapter.recognize).toHaveBeenCalledTimes(1);
+    expect(result.status).toBe("needs_review");
+    expect(result.componentRows[0]).toMatchObject({
+      casNoCandidate: "108-88-3",
+      chemicalNameCandidate: "Toluene"
+    });
+  });
+
   it("automatically stores official API classifications during upload processing", async () => {
     const db = new Database(":memory:");
     migrate(db);

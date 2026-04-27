@@ -1,8 +1,10 @@
 node_modules/
 dist/
 storage/*.db
+storage/ocr-cache/
 storage/uploads/*
 !storage/uploads/.gitkeep
+*.traineddata
 .DS_Store
 .env
 .env.local

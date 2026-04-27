@@ -6,6 +6,7 @@ import { reviewComponentRowsWithOptionalCodex } from "./aiReviewer";
 import { matchAndStoreRegulatoryData } from "./regulatoryMatcher";
 import { classifyPdfTextLayer } from "./scanDetector";
 import { extractSection3Rows } from "./tableExtractor";
+import type { OcrAdapter } from "./ocrAdapter";
 
 type ProcessExtractedTextInput = {
   documentId?: string;
@@ -14,6 +15,8 @@ type ProcessExtractedTextInput = {
   storagePath?: string;
   text: string;
   pageCount: number;
+  pdfBuffer?: Buffer;
+  ocrAdapter?: OcrAdapter;
 };
 
 export async function processExtractedText(
@@ -45,6 +48,9 @@ export async function processExtractedTextWithRepository(
   await repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, classification.status);
 
   if (classification.needsOcr) {
+    const ocrResult = await runOcrFallback(db, repo, activeDocumentId, input, classification.reason);
+    if (ocrResult) return ocrResult;
+
     return {
       documentId: activeDocumentId,
       status: "manual_input_required" as const,
@@ -59,6 +65,15 @@ export async function processExtractedTextWithRepository(
   }));
 
   if (componentRows.length === 0) {
+    const ocrResult = await runOcrFallback(
+      db,
+      repo,
+      activeDocumentId,
+      input,
+      "성분 후보를 자동 추출하지 못했습니다. PDF 텍스트/표 구조를 확인하거나 수동 입력이 필요합니다."
+    );
+    if (ocrResult) return ocrResult;
+
     await repo.upsertDocumentText(activeDocumentId, input.text, input.pageCount, "manual_input_required");
     return {
       documentId: activeDocumentId,
@@ -80,5 +95,56 @@ export async function processExtractedTextWithRepository(
     message: queueCount > 0
       ? `${componentRows.length}개 성분 후보를 추출했고, 확인이 필요한 ${queueCount}개 항목을 큐에 등록했습니다.`
       : `${componentRows.length}개 성분 후보를 사내 입력 포맷에 반영했습니다. 추가 확인이 필요한 항목은 없습니다.`
+  };
+}
+
+async function runOcrFallback(
+  db: Database.Database,
+  repo: DocumentRepository,
+  documentId: string,
+  input: ProcessExtractedTextInput,
+  fallbackMessage: string
+) {
+  if (!input.pdfBuffer || !input.ocrAdapter) return undefined;
+
+  const ocrResult = await input.ocrAdapter.recognize(input.pdfBuffer);
+  await repo.upsertDocumentText(documentId, ocrResult.text, input.pageCount, ocrResult.status);
+
+  if (ocrResult.status === "manual_input_required" || !ocrResult.text.trim()) {
+    return {
+      documentId,
+      status: "manual_input_required" as const,
+      componentRows: [],
+      message: ocrResult.message || fallbackMessage
+    };
+  }
+
+  const componentRows = (await reviewComponentRowsWithOptionalCodex(ocrResult.text, extractSection3Rows(ocrResult.text))).map((row) => ({
+    ...row,
+    rowId: row.rowId ?? nanoid()
+  }));
+
+  if (componentRows.length === 0) {
+    await repo.upsertDocumentText(documentId, ocrResult.text, input.pageCount, "manual_input_required");
+    return {
+      documentId,
+      status: "manual_input_required" as const,
+      componentRows,
+      message: `${ocrResult.message} 성분 후보를 자동 추출하지 못했습니다. PDF 원본 대조 또는 수동 입력이 필요합니다.`
+    };
+  }
+
+  await repo.insertComponentRows(documentId, componentRows);
+  await matchAndStoreRegulatoryData(db, documentId, componentRows);
+  await repo.upsertDocumentText(documentId, ocrResult.text, input.pageCount, "needs_review");
+  const queueCount = await repo.countNeedsReview(documentId);
+
+  return {
+    documentId,
+    status: "needs_review" as const,
+    componentRows,
+    message: queueCount > 0
+      ? `${ocrResult.message} ${componentRows.length}개 성분 후보를 추출했고, 확인이 필요한 ${queueCount}개 항목을 큐에 등록했습니다.`
+      : `${ocrResult.message} ${componentRows.length}개 성분 후보를 사내 입력 포맷에 반영했습니다.`
   };
 }
