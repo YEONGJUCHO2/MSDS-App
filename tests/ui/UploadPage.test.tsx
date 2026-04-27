@@ -47,6 +47,37 @@ describe("UploadPage", () => {
     expect(screen.getByText("2개 파일 업로드 완료")).toBeInTheDocument();
   });
 
+  it("shows an active upload progress panel while a batch is pending", async () => {
+    let resolveUpload: (value: Awaited<ReturnType<typeof api.uploadBatch>>) => void = () => undefined;
+    vi.mocked(api.uploadBatch).mockReturnValue(new Promise((resolve) => {
+      resolveUpload = resolve;
+    }));
+    render(<UploadPage onUploaded={() => undefined} />);
+    const files = [
+      new File(["first"], "first.pdf", { type: "application/pdf" }),
+      new File(["second"], "second.pdf", { type: "application/pdf" })
+    ];
+
+    fireEvent.drop(screen.getByTestId("msds-dropzone"), {
+      dataTransfer: { files }
+    });
+
+    expect(await screen.findByText("업로드 중 2/20")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "MSDS 업로드 진행 중" })).toBeInTheDocument();
+    expect(screen.getByText("first.pdf")).toBeInTheDocument();
+    expect(screen.getByText("second.pdf")).toBeInTheDocument();
+    expect(screen.getAllByText("대기 중")).toHaveLength(2);
+
+    resolveUpload({
+      results: [
+        { success: true, fileName: "first.pdf", documentId: "doc-1", status: "needs_review", message: "업로드 완료" },
+        { success: true, fileName: "second.pdf", documentId: "doc-2", status: "needs_review", message: "업로드 완료" }
+      ]
+    });
+
+    expect(await screen.findByText("2개 파일 업로드 완료")).toBeInTheDocument();
+  });
+
   it("shows failed batch files separately from successful uploads", async () => {
     vi.mocked(api.uploadBatch).mockResolvedValue({
       results: [

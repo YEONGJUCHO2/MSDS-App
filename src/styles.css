@@ -244,6 +244,125 @@ select {
   max-width: 260px;
 }
 
+.upload-progress-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #d6dee6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.upload-progress-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.upload-progress-title > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.upload-progress-title strong {
+  color: #1f2935;
+  font-size: 16px;
+}
+
+.upload-progress-title span {
+  color: #647382;
+  font-size: 13px;
+}
+
+.upload-spinner {
+  flex: 0 0 auto;
+  color: #2f6f9f;
+  animation: upload-spin 0.85s linear infinite;
+}
+
+.upload-progress-bar {
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7edf3;
+}
+
+.upload-progress-bar span {
+  position: absolute;
+  inset: 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2f6f9f, #65b0d6);
+  animation: upload-progress-slide 1.25s ease-in-out infinite;
+}
+
+.upload-pending-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.upload-pending-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 9px 10px;
+  border: 1px solid #e6ebf0;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #f8fafc 25%, #edf3f8 37%, #f8fafc 63%);
+  background-size: 400% 100%;
+  animation: upload-skeleton 1.4s ease infinite;
+}
+
+.upload-pending-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #253241;
+  font-weight: 700;
+}
+
+.upload-pending-list em {
+  color: #647382;
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+@keyframes upload-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes upload-progress-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  55%,
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+@keyframes upload-skeleton {
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+}
+
 .notice {
   padding: 12px;
   border-radius: 6px;

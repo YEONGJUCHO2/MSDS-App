@@ -1,4 +1,4 @@
-import { Upload } from "lucide-react";
+import { LoaderCircle, Upload } from "lucide-react";
 import { DragEvent, useState } from "react";
 import { api, type UploadBatchResult } from "../api/client";
 import { MAX_UPLOAD_FILES_PER_BATCH } from "../../shared/uploadLimits";
@@ -7,6 +7,7 @@ export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadResults, setUploadResults] = useState<UploadBatchResult[]>([]);
 
   async function handleFiles(fileList: FileList | File[] | null | undefined) {
@@ -17,6 +18,7 @@ export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
       setUploadResults([]);
       return;
     }
+    setPendingFiles(files);
     setBusy(true);
     setMessage("");
     setUploadResults([]);
@@ -31,6 +33,7 @@ export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
       setMessage(error instanceof Error ? error.message : "업로드 실패");
     } finally {
       setBusy(false);
+      setPendingFiles([]);
     }
   }
 
@@ -66,6 +69,28 @@ export function UploadPage({ onUploaded }: { onUploaded: () => void }) {
           onChange={(event) => void handleFiles(event.target.files)}
         />
       </label>
+      {busy ? (
+        <section aria-live="polite" className="upload-progress-panel">
+          <div className="upload-progress-title">
+            <LoaderCircle aria-hidden="true" className="upload-spinner" />
+            <div>
+              <strong>업로드 중 {pendingFiles.length}/{MAX_UPLOAD_FILES_PER_BATCH}</strong>
+              <span>파일을 분석하고 목록에 반영하는 중입니다.</span>
+            </div>
+          </div>
+          <div aria-label="MSDS 업로드 진행 중" className="upload-progress-bar" role="progressbar">
+            <span />
+          </div>
+          <ul className="upload-pending-list">
+            {pendingFiles.map((file) => (
+              <li key={`${file.name}-${file.size}`}>
+                <span>{file.name}</span>
+                <em>대기 중</em>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       {message ? <p className="notice">{message}</p> : null}
       {uploadResults.length > 0 ? (
         <ul className="upload-results">
