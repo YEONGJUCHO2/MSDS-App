@@ -27,7 +27,7 @@ export async function lookupKecoChemicalInfo(db: Database.Database, casNo: strin
     upsertChemicalApiCache(db, {
       provider: "keco",
       casNo,
-      requestUrl: url.toString(),
+      requestUrl: redactServiceKey(url.toString()),
       responseText: error instanceof Error ? error.message : "lookup failed",
       status: error instanceof Error && error.message.includes("timed out") ? "timeout" : "network_error",
       ttlDays: 1
@@ -39,7 +39,7 @@ export async function lookupKecoChemicalInfo(db: Database.Database, casNo: strin
     upsertChemicalApiCache(db, {
       provider: "keco",
       casNo,
-      requestUrl: url.toString(),
+      requestUrl: redactServiceKey(url.toString()),
       responseText,
       status: `http_${response.status ?? "error"}`,
       ttlDays: 1
@@ -52,7 +52,7 @@ export async function lookupKecoChemicalInfo(db: Database.Database, casNo: strin
     upsertChemicalApiCache(db, {
       provider: "keco",
       casNo,
-      requestUrl: url.toString(),
+      requestUrl: redactServiceKey(url.toString()),
       responseText,
       status: `api_${resultCode}`,
       ttlDays: 1
@@ -63,14 +63,14 @@ export async function lookupKecoChemicalInfo(db: Database.Database, casNo: strin
   upsertChemicalApiCache(db, {
     provider: "keco",
     casNo,
-    requestUrl: url.toString(),
+    requestUrl: redactServiceKey(url.toString()),
     responseText,
     status: "ok"
   });
 
   return {
     cacheStatus: "miss" as const,
-    matches: parseKecoResponse(casNo, responseText, url.toString())
+    matches: parseKecoResponse(casNo, responseText, redactServiceKey(url.toString()))
   };
 }
 
@@ -116,6 +116,14 @@ function buildKecoUrl(endpoint: string, serviceKey: string, casNo: string) {
 function normalizeKecoEndpoint(endpoint: string) {
   const normalized = endpoint.replace(/\/$/, "");
   return normalized.endsWith("/chemSbstnList") ? normalized : `${normalized}/chemSbstnList`;
+}
+
+function redactServiceKey(sourceUrl: string) {
+  const url = new URL(sourceUrl);
+  if (url.searchParams.has("serviceKey")) {
+    url.searchParams.set("serviceKey", "REDACTED");
+  }
+  return url.toString();
 }
 
 function parseKecoResponse(casNo: string, responseText: string, sourceUrl: string): OfficialChemicalMatch[] {

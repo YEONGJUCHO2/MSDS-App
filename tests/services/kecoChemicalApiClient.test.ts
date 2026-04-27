@@ -63,7 +63,8 @@ describe("KECO chemical API client", () => {
       expect.objectContaining({
         casNo: "67-64-1",
         category: "chemicalInfoLookup",
-        sourceName: "한국환경공단 화학물질 정보 조회 서비스"
+        sourceName: "한국환경공단 화학물질 정보 조회 서비스",
+        sourceUrl: expect.stringContaining("serviceKey=REDACTED")
       }),
       expect.objectContaining({
         casNo: "67-64-1",
@@ -77,8 +78,8 @@ describe("KECO chemical API client", () => {
       })
     ]));
     expect(second.cacheStatus).toBe("hit");
-    expect(db.prepare("SELECT provider, cas_no AS casNo, status FROM chemical_api_cache").all()).toEqual([
-      { provider: "keco", casNo: "67-64-1", status: "ok" }
+    expect(db.prepare("SELECT provider, cas_no AS casNo, status, request_url AS requestUrl FROM chemical_api_cache").all()).toEqual([
+      { provider: "keco", casNo: "67-64-1", status: "ok", requestUrl: expect.stringContaining("serviceKey=REDACTED") }
     ]);
   });
 

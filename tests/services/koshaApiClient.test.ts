@@ -46,11 +46,12 @@ describe("KOSHA MSDS API client", () => {
       casNo: "12604-53-4",
       category: "officialMsdsLookup",
       sourceName: "KOSHA MSDS Open API",
+      sourceUrl: expect.stringContaining("serviceKey=REDACTED"),
       evidenceText: "페로망가니즈(페로망간) / 12604-53-4 / KE-13738 / 2024-11-01T00:00:00+09:00"
     });
     expect(second.cacheStatus).toBe("hit");
-    expect(db.prepare("SELECT provider, cas_no AS casNo, status FROM chemical_api_cache").all()).toEqual([
-      { provider: "kosha", casNo: "12604-53-4", status: "ok" }
+    expect(db.prepare("SELECT provider, cas_no AS casNo, status, request_url AS requestUrl FROM chemical_api_cache").all()).toEqual([
+      { provider: "kosha", casNo: "12604-53-4", status: "ok", requestUrl: expect.stringContaining("serviceKey=REDACTED") }
     ]);
   });
 

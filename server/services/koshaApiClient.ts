@@ -34,7 +34,7 @@ export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: stri
     upsertChemicalApiCache(db, {
       provider: "kosha",
       casNo,
-      requestUrl: url.toString(),
+      requestUrl: redactServiceKey(url.toString()),
       responseText: error instanceof Error ? error.message : "lookup failed",
       status: error instanceof Error && error.message.includes("timed out") ? "timeout" : "network_error",
       ttlDays: 1
@@ -46,7 +46,7 @@ export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: stri
     upsertChemicalApiCache(db, {
       provider: "kosha",
       casNo,
-      requestUrl: url.toString(),
+      requestUrl: redactServiceKey(url.toString()),
       responseText,
       status: `http_${response.status ?? "error"}`,
       ttlDays: 1
@@ -57,14 +57,14 @@ export async function lookupKoshaChemicalInfo(db: Database.Database, casNo: stri
   upsertChemicalApiCache(db, {
     provider: "kosha",
     casNo,
-    requestUrl: url.toString(),
+    requestUrl: redactServiceKey(url.toString()),
     responseText,
     status: "ok"
   });
 
   return {
     cacheStatus: "miss" as const,
-    matches: parseKoshaResponse(casNo, responseText, url.toString())
+    matches: parseKoshaResponse(casNo, responseText, redactServiceKey(url.toString()))
   };
 }
 
@@ -112,6 +112,14 @@ function normalizeKoshaEndpoint(endpoint: string) {
     return "https://msds.kosha.or.kr/openapi/service/msdschem/chemlist";
   }
   return trimmed.endsWith("/chemlist") ? trimmed : `${trimmed}/chemlist`;
+}
+
+function redactServiceKey(sourceUrl: string) {
+  const url = new URL(sourceUrl);
+  if (url.searchParams.has("serviceKey")) {
+    url.searchParams.set("serviceKey", "REDACTED");
+  }
+  return url.toString();
 }
 
 function parseKoshaResponse(casNo: string, responseText: string, sourceUrl: string): OfficialChemicalMatch[] {
