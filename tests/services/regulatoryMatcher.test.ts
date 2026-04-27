@@ -216,6 +216,64 @@ describe("regulatory matcher", () => {
     });
   });
 
+  it("resolves common Korean chemical names to CAS numbers before official API matching", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KECO_CHEM_API_URL = "https://example.test/keco";
+    process.env.KECO_API_SERVICE_KEY = "service-key";
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const requestedUrl = new URL(url);
+      expect(requestedUrl.searchParams.get("searchGubun")).toBe("2");
+      expect(requestedUrl.searchParams.get("searchNm")).toBe("1344-28-1");
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          header: { resultCode: "200", resultMsg: "NORMAL SERVICE." },
+          body: {
+            items: [{
+              casNo: "1344-28-1",
+              sbstnNmEng: "Aluminium oxide; Alumina",
+              korexst: "KE-01012",
+              typeList: [{ sbstnClsfTypeNm: "기존화학물질", unqNo: "KE-01012" }]
+            }]
+          }
+        })
+      };
+    }));
+    insertDocument(db, { documentId: "doc-1", fileName: "resac.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    insertComponentRows(db, "doc-1", [{
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "산화 알루미늄 20~30",
+      casNoCandidate: "",
+      chemicalNameCandidate: "산화 알루미늄",
+      contentMinCandidate: "20",
+      contentMaxCandidate: "30",
+      contentSingleCandidate: "",
+      contentText: "20~30",
+      confidence: 0.62,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review"
+    }]);
+
+    const result = await matchAndStoreRegulatoryData(db, "doc-1", [
+      { rowId: "row-1", casNoCandidate: "", chemicalNameCandidate: "산화 알루미늄" }
+    ]);
+
+    expect(result).toEqual([{ rowId: "row-1", seedMatches: 0, apiMatches: 1, status: "official_api_matched" }]);
+    expect(db.prepare("SELECT cas_no_candidate AS casNoCandidate, regulatory_match_status AS regulatoryMatchStatus FROM components").get()).toEqual({
+      casNoCandidate: "1344-28-1",
+      regulatoryMatchStatus: "official_api_matched"
+    });
+    expect(db.prepare("SELECT ai_review_status AS aiReviewStatus, ai_review_note AS aiReviewNote FROM components").get()).toEqual({
+      aiReviewStatus: "ai_candidate",
+      aiReviewNote: "물질명으로 CAS No.를 자동 보강했고 공식 API 조회가 완료되었습니다."
+    });
+    expect(db.prepare("SELECT cas_no AS casNo, source_type AS sourceType FROM regulatory_matches").all()).toEqual([
+      { casNo: "1344-28-1", sourceType: "official_api" }
+    ]);
+  });
+
   it("updates component and queue review status together", () => {
     const db = new Database(":memory:");
     migrate(db);

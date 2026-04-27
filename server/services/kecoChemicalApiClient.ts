@@ -213,7 +213,12 @@ function summarizeItem(item: Record<string, unknown>) {
 
 function normalizeTypeList(value: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(value)) return value.filter(isRecord);
-  if (isRecord(value)) return [value];
+  if (isRecord(value)) {
+    const nestedItem = value.item;
+    if (Array.isArray(nestedItem)) return nestedItem.filter(isRecord);
+    if (isRecord(nestedItem)) return [nestedItem];
+    return [value];
+  }
   return [];
 }
 

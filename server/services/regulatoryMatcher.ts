@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import type { RegulatoryMatchStatus } from "../../shared/types";
-import { deleteRegulatoryMatchesForRow, getComponentRow, insertRegulatoryMatch, updateComponentRegulatoryStatus, upsertWatchlist } from "../db/repositories";
+import { deleteRegulatoryMatchesForRow, getComponentRow, insertRegulatoryMatch, updateComponentAiReview, updateComponentCasCandidate, updateComponentRegulatoryStatus, upsertWatchlist } from "../db/repositories";
 import { lookupRegulatoryCandidates } from "./regulatoryLookup";
 import { isKecoApiConfigured, lookupKecoChemicalInfo } from "./kecoChemicalApiClient";
 import { isOfficialApiConfigured, lookupKoshaChemicalInfo } from "./koshaApiClient";
@@ -13,15 +13,25 @@ export async function matchAndStoreRegulatoryData(
   const results: Array<{ rowId: string; seedMatches: number; apiMatches: number; status: RegulatoryMatchStatus }> = [];
 
   for (const row of rows) {
-    if (!row.rowId || !row.casNoCandidate) continue;
+    if (!row.rowId) continue;
+    const resolvedCasNo = row.casNoCandidate || resolveCasNoFromChemicalName(row.chemicalNameCandidate);
+    if (!resolvedCasNo) {
+      updateComponentRegulatoryStatus(db, row.rowId, chooseStatus(0, 0));
+      results.push({ rowId: row.rowId, seedMatches: 0, apiMatches: 0, status: chooseStatus(0, 0) });
+      continue;
+    }
+    const resolvedFromName = !row.casNoCandidate && Boolean(resolvedCasNo);
+    if (resolvedFromName) {
+      updateComponentCasCandidate(db, row.rowId, resolvedCasNo);
+    }
     deleteRegulatoryMatchesForRow(db, row.rowId);
 
-    const seedMatches = lookupRegulatoryCandidates(db, row.casNoCandidate);
+    const seedMatches = lookupRegulatoryCandidates(db, resolvedCasNo);
     for (const match of seedMatches) {
       insertRegulatoryMatch(db, {
         rowId: row.rowId,
         documentId,
-        casNo: row.casNoCandidate,
+        casNo: resolvedCasNo,
         category: match.category,
         status: match.status,
         sourceType: "internal_seed",
@@ -31,12 +41,12 @@ export async function matchAndStoreRegulatoryData(
       });
     }
 
-    const officialMatches = await lookupOfficialMatches(db, row.casNoCandidate);
+    const officialMatches = await lookupOfficialMatches(db, resolvedCasNo);
     for (const match of officialMatches) {
       insertRegulatoryMatch(db, {
         rowId: row.rowId,
         documentId,
-        casNo: row.casNoCandidate,
+        casNo: resolvedCasNo,
         category: match.category,
         status: "공식 API 조회됨",
         sourceType: "official_api",
@@ -48,8 +58,14 @@ export async function matchAndStoreRegulatoryData(
 
     const status = chooseStatus(seedMatches.length, officialMatches.length);
     updateComponentRegulatoryStatus(db, row.rowId, status);
+    if (shouldClearMissingCasReview(db, row.rowId, resolvedFromName, status)) {
+      updateComponentAiReview(db, row.rowId, {
+        aiReviewStatus: "ai_candidate",
+        aiReviewNote: "물질명으로 CAS No.를 자동 보강했고 공식 API 조회가 완료되었습니다."
+      });
+    }
     upsertWatchlist(db, {
-      casNo: row.casNoCandidate,
+      casNo: resolvedCasNo,
       chemicalName: row.chemicalNameCandidate,
       sourceName: officialMatches.length > 0 ? officialMatches[0].sourceName : seedMatches.length > 0 ? "내부 기준표" : "조회 대기",
       status
@@ -157,4 +173,26 @@ export function chooseStatus(seedMatches: number, officialMatches: number): Regu
   if (seedMatches > 0) return "internal_seed_matched";
   if (!isKecoApiConfigured() && !isOfficialApiConfigured()) return "api_key_required";
   return "no_match";
+}
+
+function shouldClearMissingCasReview(db: Database.Database, rowId: string, resolvedFromName: boolean, status: RegulatoryMatchStatus) {
+  if (status !== "official_api_matched") return false;
+  if (resolvedFromName) return true;
+  const row = getComponentRow(db, rowId);
+  return row?.aiReviewStatus === "ai_needs_attention" && row.aiReviewNote.includes("CAS No. 누락");
+}
+
+function resolveCasNoFromChemicalName(chemicalName: string) {
+  const normalized = chemicalName.toLowerCase().replace(/\s+/g, "");
+  if (!normalized) return "";
+  if (normalized.includes("산화알루미늄") || normalized.includes("알루미늄산화물") || normalized.includes("aluminiumoxide") || normalized.includes("aluminumoxide") || normalized.includes("alumina")) {
+    return "1344-28-1";
+  }
+  if ((normalized.includes("산화규소") && normalized.includes("규조토")) || normalized.includes("diatomaceousearth") || normalized.includes("kieselguhr")) {
+    return "61790-53-2";
+  }
+  if (normalized.includes("산화철") || normalized.includes("ironoxide") || normalized.includes("burntsienna")) {
+    return "1332-37-2";
+  }
+  return "";
 }

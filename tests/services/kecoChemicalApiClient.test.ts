@@ -134,6 +134,39 @@ describe("KECO chemical API client", () => {
     expect(result.matches).toHaveLength(1);
   });
 
+  it("parses nested KECO classification item lists", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KECO_CHEM_API_URL = "https://example.test/keco";
+    process.env.KECO_API_SERVICE_KEY = "service-key";
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({
+        header: { resultCode: "200", resultMsg: "NORMAL SERVICE." },
+        body: {
+          items: [{
+            casNo: "67-64-1",
+            sbstnNmKor: "아세톤",
+            typeList: {
+              item: [
+                { sbstnClsfTypeNm: "유독물질", unqNo: "97-1-11" },
+                { sbstnClsfTypeNm: "사고대비물질", unqNo: "V-1" }
+              ]
+            }
+          }]
+        }
+      })
+    });
+
+    const result = await lookupKecoChemicalInfo(db, "67-64-1", fetcher);
+
+    expect(result.matches).toEqual(expect.arrayContaining([
+      expect.objectContaining({ category: "chemicalInfoLookup" }),
+      expect.objectContaining({ category: "toxic", evidenceText: expect.stringContaining("유독물질") }),
+      expect.objectContaining({ category: "accidentPreparedness", evidenceText: expect.stringContaining("사고대비물질") })
+    ]));
+  });
+
   it("times out slow official API requests and caches the timeout status", async () => {
     vi.useFakeTimers();
     const db = new Database(":memory:");

@@ -427,7 +427,9 @@ export function getComponentRow(db: Database.Database, rowId: string) {
       row_id AS rowId,
       document_id AS documentId,
       cas_no_candidate AS casNoCandidate,
-      chemical_name_candidate AS chemicalNameCandidate
+      chemical_name_candidate AS chemicalNameCandidate,
+      ai_review_status AS aiReviewStatus,
+      ai_review_note AS aiReviewNote
     FROM components
     WHERE row_id = ?
   `).get(rowId) as
@@ -436,6 +438,8 @@ export function getComponentRow(db: Database.Database, rowId: string) {
         documentId: string;
         casNoCandidate: string;
         chemicalNameCandidate: string;
+        aiReviewStatus: AiReviewStatus;
+        aiReviewNote: string;
       }
     | undefined;
 }
@@ -453,6 +457,10 @@ export function updateComponentAiReview(
 
 export function updateComponentRegulatoryStatus(db: Database.Database, rowId: string, status: RegulatoryMatchStatus) {
   db.prepare("UPDATE components SET regulatory_match_status = ? WHERE row_id = ?").run(status, rowId);
+}
+
+export function updateComponentCasCandidate(db: Database.Database, rowId: string, casNoCandidate: string) {
+  db.prepare("UPDATE components SET cas_no_candidate = ? WHERE row_id = ?").run(casNoCandidate, rowId);
 }
 
 export function updateComponentReviewStatus(db: Database.Database, rowId: string, reviewStatus: ReviewStatus) {
