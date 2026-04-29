@@ -1,4 +1,8 @@
-import { app } from "./app";
+import { loadEnvFile } from "./env";
+
+loadEnvFile();
+
+const { app } = await import("./app");
 
 const port = Number(process.env.PORT ?? 8787);
 

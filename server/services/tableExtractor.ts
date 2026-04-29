@@ -4,6 +4,10 @@ import { resolveCasNoFromChemicalName } from "./chemicalNameResolver";
 const casPattern = /\b\d{2,7}-\d{2}-\d\b/g;
 const concentrationPattern = /(?:<\s*)?\d+(?:\.\d+)?\s*(?:~|-|to)\s*\d+(?:\.\d+)?\s*%?|(?:<\s*)?\d+(?:\.\d+)?\s*%?/i;
 const trailingConcentrationPattern = /(?:<\s*)?\d+(?:\.\d+)?\s*(?:~|-|to)\s*\d+(?:\.\d+)?\s*%?$|(?:<\s*)?\d+(?:\.\d+)?\s*%?$/i;
+const conciseNamesByCas = new Map<string, { ko: string; en: string }>([
+  ["1333-74-0", { ko: "수소", en: "Hydrogen" }],
+  ["7727-37-9", { ko: "질소", en: "Nitrogen" }]
+]);
 
 export function extractSection3Rows(text: string): Section3Row[] {
   const extractedSection = extractSection3Text(text);
@@ -18,6 +22,10 @@ export function extractSection3Rows(text: string): Section3Row[] {
   let seenSectionHeader = false;
 
   for (const line of lines) {
+    if (isLikelyNonCompositionLine(line)) {
+      pendingNameLines = [];
+      continue;
+    }
     if (isSection3HeaderLine(line)) {
       seenSectionHeader = true;
       pendingNameLines = [];
@@ -48,7 +56,10 @@ export function extractSection3Rows(text: string): Section3Row[] {
         : lineWithoutCas.match(concentrationPattern);
       const contentText = concentrationMatch?.[0]?.replace(/\s+/g, "") ?? "";
       const { min, max, single } = parseConcentration(contentText);
-      const chemicalNameCandidate = extractChemicalName(line, casNoCandidate, contentText, pendingNameLines);
+      const chemicalNameCandidate = normalizeChemicalNameCandidate(
+        extractChemicalName(line, casNoCandidate, contentText, pendingNameLines),
+        casNoCandidate
+      );
 
       rows.push({
         rowIndex: rows.length,
@@ -90,6 +101,13 @@ function extractSection3Text(text: string) {
   const scopedStart = findSectionStartWithPrefix(text, startIndex);
   const scoped = text.slice(scopedStart);
   const prefix = text.slice(scopedStart, startIndex);
+  if (prefix.match(casPattern)) {
+    return {
+      text: prefix,
+      hasSectionHeader: true,
+      hasCasRowsBeforeHeader: true
+    };
+  }
   const endIndex = endPatterns
     .map((pattern) => scoped.search(pattern))
     .filter((index) => index > Math.max(0, startIndex - findSectionStartWithPrefix(text, startIndex)))
@@ -105,7 +123,7 @@ function extractSection3Text(text: string) {
 function findSectionStartWithPrefix(text: string, startIndex: number) {
   const prefix = text.slice(0, startIndex);
   const lineStarts = Array.from(prefix.matchAll(/\n/g)).map((match) => (match.index ?? 0) + 1);
-  const prefixLineCount = 12;
+  const prefixLineCount = 40;
   return lineStarts[Math.max(0, lineStarts.length - prefixLineCount)] ?? 0;
 }
 
@@ -143,8 +161,36 @@ function extractChemicalName(line: string, casNo: string, contentText: string, p
   return isConcentrationOnly(fallback) ? "" : fallback.replace(/\s{2,}/g, " ").trim();
 }
 
+function normalizeChemicalNameCandidate(value: string, casNo: string) {
+  const cleaned = cleanChemicalNameLine(value).replace(/\s{2,}/g, " ").trim();
+  if (!cleaned) return "";
+
+  const conciseName = conciseNamesByCas.get(casNo);
+  if (conciseName && looksLikeSynonymHeavyName(cleaned)) {
+    if (new RegExp(`^${escapeRegExp(conciseName.en)}\\b`, "i").test(cleaned)) return conciseName.en;
+    if (cleaned.includes(conciseName.ko)) return conciseName.ko;
+    return conciseName.ko;
+  }
+
+  return trimSynonymList(cleaned);
+}
+
+function looksLikeSynonymHeavyName(value: string) {
+  return /[;；]/.test(value) || /\b(?:synonym|alias|이명|관용명)\b/i.test(value);
+}
+
+function trimSynonymList(value: string) {
+  if (!looksLikeSynonymHeavyName(value)) return value;
+  const beforeList = value.split(/[;；]/)[0]?.trim() ?? value;
+  const koreanPrimary = beforeList.match(/^([가-힣][가-힣\s]*?)(?:\s+[A-Za-z가-힣].*)?$/)?.[1]?.trim();
+  if (koreanPrimary && koreanPrimary.length <= 12) return koreanPrimary;
+  const englishPrimary = beforeList.match(/^([A-Z][A-Za-z0-9()+,.-]*)\s+[A-Za-z]/)?.[1]?.trim();
+  return englishPrimary || beforeList || value;
+}
+
 function parseNoCasComponentLine(line: string, rowIndex: number): Section3Row | undefined {
   if (isHeaderLine(line)) return undefined;
+  if (isLikelyNonCompositionLine(line)) return undefined;
   const concentrationMatch = line.match(trailingConcentrationPattern);
   if (!concentrationMatch?.[0]) return undefined;
   const contentText = concentrationMatch[0].replace(/\s+/g, "");
@@ -170,13 +216,20 @@ function parseNoCasComponentLine(line: string, rowIndex: number): Section3Row | 
 function isPossibleChemicalNameLine(line: string) {
   const cleaned = cleanChemicalNameLine(line);
   if (!cleaned) return false;
+  if (isLikelyNonCompositionLine(cleaned)) return false;
   if (/^(?:--\s*)?\d+\s+of\s+\d+(?:\s*--)?$/i.test(cleaned)) return false;
+  if (/^(?:저장|폐기|이명|관용명|이명\(관용명\)|CAS번호|함유량|\(%\))$/i.test(cleaned)) return false;
+  if (/이명\(관용명\)|CAS번호|함유량/.test(cleaned)) return false;
   if (/^(?:\d+\/\d+|가\.|나\.|다\.|라\.|마\.)$/.test(cleaned)) return false;
   if (/^(?:가|나|다|라|마)\.\s/.test(cleaned)) return false;
   if (/(?:하시오|시오\.?|받으시오|씻어내시오|세탁하시오|착용할 것)[\s.]*$/i.test(cleaned)) return false;
   if (/^(?:\d+\.\s*)?(?:화학물질명|관용명|CAS번호|함유량|구성성분|개정일|품명)/i.test(cleaned)) return false;
   if (isConcentrationOnly(cleaned)) return false;
   return /[A-Za-z가-힣]/.test(cleaned);
+}
+
+function isLikelyNonCompositionLine(line: string) {
+  return /(TWA|STEL|NOAEC|NOAEL|LD50|LC50|BCF|log\s*Kow|OECD|GLP|mg\/m3|mg\/kg|발암성|독성|피부|눈에|흡입|복귀돌연변이|염색체|시험|관찰|최종개정일자|개정일자)/i.test(line);
 }
 
 function isPossibleNoCasChemicalName(value: string) {
@@ -196,8 +249,13 @@ function isSection3HeaderLine(line: string) {
 
 function cleanChemicalNameLine(line: string) {
   return line
-    .replace(/화학물질명|관용명 및 이명|CAS번호|함유량%?\s*(?:\(w\/w\))?/gi, "")
+    .replace(/화학물질명|물질명|관용명\s*및\s*이명|이명\s*\(관용명\)|CAS\s*번호\s*또는\s*식별번호|CAS\s*No\.?|CAS\s*번호|CAS번호|함유량%?\s*(?:\(w\/w\))?|\(%\)/gi, "")
+    .replace(/\s{2,}/g, " ")
     .trim();
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function isConcentrationOnly(value: string) {

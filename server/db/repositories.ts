@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
+import { COMPONENT_EXPORT_REGULATORY_CATEGORIES } from "../../shared/componentExport";
 import type { AiReviewStatus, BasicInfoField, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, ReviewStatus, Section3Row } from "../../shared/types";
 import { normalizeUploadedFileName } from "../services/fileName";
 
@@ -7,6 +8,19 @@ type ComponentCandidateInput = Pick<
   Section3Row,
   "casNoCandidate" | "chemicalNameCandidate" | "contentMinCandidate" | "contentMaxCandidate" | "contentSingleCandidate"
 >;
+
+const officialComponentExportCategoryList = COMPONENT_EXPORT_REGULATORY_CATEGORIES
+  .map((category) => `'${category.replace(/'/g, "''")}'`)
+  .join(", ");
+
+const officialComponentExportReviewCountSql = `
+  SELECT COUNT(DISTINCT rm.match_id)
+  FROM regulatory_matches rm
+  WHERE rm.document_id = d.document_id
+    AND rm.source_type = 'official_api'
+    AND rm.status NOT LIKE '비해당%'
+    AND rm.category IN (${officialComponentExportCategoryList})
+`;
 
 export function insertDocument(
   db: Database.Database,
@@ -216,7 +230,7 @@ export function listDocuments(db: Database.Database): DocumentSummary[] {
       d.status AS status,
       d.uploaded_at AS uploadedAt,
       COUNT(DISTINCT c.row_id) AS componentCount,
-      COUNT(DISTINCT q.queue_id) AS queueCount
+      COUNT(DISTINCT q.queue_id) + (${officialComponentExportReviewCountSql}) AS queueCount
     FROM documents d
     LEFT JOIN components c ON c.document_id = d.document_id
     LEFT JOIN review_queue q ON q.document_id = d.document_id AND q.review_status = 'needs_review'

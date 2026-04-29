@@ -6,6 +6,7 @@ export type AiProviderName = "local" | "codex" | "openai";
 export interface AiProviderConfig {
   provider: AiProviderName;
   model?: string;
+  reasoningEffort?: string;
   configured: boolean;
 }
 
@@ -26,6 +27,7 @@ export function resolveAiProvider(env: EnvLike = process.env): AiProviderConfig 
     return {
       provider: "codex",
       model: env.MSDS_CODEX_MODEL?.trim() || undefined,
+      reasoningEffort: env.MSDS_CODEX_REASONING_EFFORT?.trim() || undefined,
       configured: true
     };
   }
@@ -52,6 +54,7 @@ export function createConfiguredAiAdapter(config: AiProviderConfig, env: EnvLike
       enabled: true,
       command: env.MSDS_CODEX_COMMAND || "codex",
       model: config.model,
+      reasoningEffort: config.reasoningEffort,
       timeoutMs: Number(env.MSDS_CODEX_TIMEOUT_MS || 60_000)
     });
   }

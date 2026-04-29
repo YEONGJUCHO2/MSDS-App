@@ -50,13 +50,32 @@ export async function reviewComponentRowsWithOptionalCodex(text: string, rows: S
         aiReviewNote: `${row.aiReviewNote} ${result.message}`
       }));
     }
-    const codexCasSet = new Set(result.candidate.components.map((component) => component.casNo).filter(Boolean));
-    return localReviewed.map((row) => ({
+    const aiRows = result.candidate.components
+      .filter((component) => component.casNo.trim() || component.chemicalName.trim())
+      .map((component, index): AiReviewedRow => {
+        const contentText = formatContentText(component.contentMin, component.contentMax, component.contentSingle);
+        return {
+          rowIndex: index,
+          rawRowText: component.evidence || [component.chemicalName, component.casNo, contentText].filter(Boolean).join(" "),
+          casNoCandidate: component.casNo.trim(),
+          chemicalNameCandidate: component.chemicalName.trim(),
+          contentMinCandidate: component.contentMin.trim(),
+          contentMaxCandidate: component.contentMax.trim(),
+          contentSingleCandidate: component.contentSingle.trim(),
+          contentText,
+          confidence: contentText && component.casNo.trim() && component.chemicalName.trim() ? 0.9 : 0.68,
+          evidenceLocation: component.evidence ? `${providerLabel} 구조화 / row ${index + 1}` : `${providerLabel} 구조화`,
+          reviewStatus: component.reviewStatus,
+          aiReviewStatus: missingFields(component).length > 0 ? "ai_needs_attention" : "ai_candidate",
+          aiReviewNote: missingFields(component).length > 0
+            ? `${providerLabel} 구조화 결과를 사내 입력 후보로 사용했습니다. ${missingFields(component).join(", ")}`
+            : `${providerLabel} 구조화 결과를 사내 입력 후보로 사용했습니다.`
+        };
+      });
+
+    return aiRows.length > 0 ? aiRows : localReviewed.map((row) => ({
       ...row,
-      aiReviewStatus: codexCasSet.has(row.casNoCandidate) ? "ai_candidate" : row.aiReviewStatus,
-      aiReviewNote: codexCasSet.has(row.casNoCandidate)
-        ? `${row.aiReviewNote} ${providerLabel} 구조화 결과와 CAS No.가 일치합니다.`
-        : `${row.aiReviewNote} ${providerLabel} 구조화 결과에서 동일 CAS No.를 찾지 못했습니다.`
+      aiReviewNote: `${row.aiReviewNote} ${providerLabel} 구조화 결과에서 사용할 성분 후보를 찾지 못해 로컬 파서 후보를 유지했습니다.`
     }));
   } catch (error) {
     const message = error instanceof Error ? error.message : `${providerLabel} 호출 실패`;
@@ -66,4 +85,21 @@ export async function reviewComponentRowsWithOptionalCodex(text: string, rows: S
       aiReviewNote: `${row.aiReviewNote} ${providerLabel} 검토 실패: ${message}`
     }));
   }
+}
+
+function formatContentText(contentMin: string, contentMax: string, contentSingle: string) {
+  const single = contentSingle.trim();
+  if (single) return single;
+  const min = contentMin.trim();
+  const max = contentMax.trim();
+  if (min || max) return `${min}~${max}`.replace(/^~/, "").replace(/~$/, "");
+  return "";
+}
+
+function missingFields(component: { casNo: string; chemicalName: string; contentMin: string; contentMax: string; contentSingle: string }) {
+  return [
+    component.casNo.trim() ? "" : "CAS No. 누락",
+    component.chemicalName.trim() ? "" : "물질명 누락",
+    formatContentText(component.contentMin, component.contentMax, component.contentSingle) ? "" : "함유량 누락"
+  ].filter(Boolean);
 }

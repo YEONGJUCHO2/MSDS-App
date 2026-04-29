@@ -147,12 +147,38 @@ describe("ProductsPage", () => {
     expect(within(siteSection as HTMLElement).queryByText("sealant-msds.pdf")).not.toBeInTheDocument();
     expect(within(siteSection as HTMLElement).queryByText("cleaner-msds.pdf")).not.toBeInTheDocument();
     expect(within(siteSection as HTMLElement).getByRole("button", { name: "1공장 현장 조회" })).toBeInTheDocument();
+    expect(within(siteSection as HTMLElement).getByRole("button", { name: "1공장 현장 조회" })).toHaveClass("needs-review");
 
     const productSection = screen.getByRole("heading", { name: "MSDS별 연결 현황" }).closest("section");
     expect(productSection).not.toBeNull();
     expect(within(productSection as HTMLElement).getByText("1공장 기준")).toBeInTheDocument();
     expect(within(productSection as HTMLElement).getByText(/sealant-msds\.pdf/)).toBeInTheDocument();
     expect(within(productSection as HTMLElement).getByText(/cleaner-msds\.pdf/)).toBeInTheDocument();
+  });
+
+  it("marks site cards yellow when the site includes an MSDS requiring review", async () => {
+    vi.mocked(api.products).mockResolvedValue({
+      products: [
+        {
+          productId: "product-1",
+          documentId: "doc-1",
+          documentFileName: "cleaner-msds.pdf",
+          productName: "cleaner-msds",
+          supplier: "",
+          manufacturer: "",
+          siteNames: "1공장",
+          registrationStatus: "linked_to_site",
+          documentStatus: "needs_review",
+          componentCount: 5,
+          queueCount: 2
+        }
+      ]
+    });
+
+    render(<ProductsPage />);
+
+    const siteButton = await screen.findByRole("button", { name: "1공장 현장 조회" });
+    expect(siteButton).toHaveClass("needs-review");
   });
 
   it("filters product links by search text and management status", async () => {
@@ -344,6 +370,6 @@ describe("ProductsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "sealant-msds 제품 삭제" }));
 
     await waitFor(() => expect(api.deleteProduct).toHaveBeenCalledWith("product-1"));
-    expect(await screen.findByText("제품/현장 연결을 삭제했습니다.")).toBeInTheDocument();
+    expect(await screen.findByText("현장관리 연결을 삭제했습니다.")).toBeInTheDocument();
   });
 });

@@ -154,9 +154,21 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
                     </td>
                   ) : (
                     <>
-                      {formatComponentExportRow(row).map((value, index) => (
-                        <td key={`${row.rowId ?? row.rowIndex}-${REGULATORY_COMPONENT_EXPORT_COLUMNS[index].key}`}>{value}</td>
-                      ))}
+                      {formatComponentExportRow(row).map((value, index) => {
+                        const column = REGULATORY_COMPONENT_EXPORT_COLUMNS[index];
+                        const officialReviewHit = Boolean(value && hasOfficialApiColumnHit(row, column));
+                        return (
+                        <td
+                          className={[
+                            value && "categories" in column ? "regulatory-hit-cell" : "",
+                            officialReviewHit ? "regulatory-review-hit" : ""
+                          ].filter(Boolean).join(" ")}
+                          key={`${row.rowId ?? row.rowIndex}-${column.key}`}
+                        >
+                          {value}
+                        </td>
+                        );
+                      })}
                       {onUpdate || onRemove || onRecheck ? (
                         <td className="row-actions">
                           {row.rowId && onUpdate ? <button onClick={() => startEdit(row)} type="button">수정</button> : null}
@@ -248,4 +260,16 @@ function toPayload(row: Section3Row): ComponentCandidatePayload {
 
 function isValidCandidate(candidate: ComponentCandidatePayload) {
   return Boolean(candidate.casNoCandidate.trim() || candidate.chemicalNameCandidate.trim());
+}
+
+function hasOfficialApiHit(row: Section3Row, categories: readonly string[]) {
+  return (row.regulatoryMatches ?? []).some((match) =>
+    match.sourceType === "official_api"
+    && categories.includes(match.category)
+    && !match.status.startsWith("비해당")
+  );
+}
+
+function hasOfficialApiColumnHit(row: Section3Row, column: (typeof REGULATORY_COMPONENT_EXPORT_COLUMNS)[number]) {
+  return "categories" in column && hasOfficialApiHit(row, column.categories);
 }

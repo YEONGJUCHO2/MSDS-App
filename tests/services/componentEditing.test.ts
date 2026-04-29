@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { describe, expect, it } from "vitest";
-import { insertDocument, insertManualComponentRow, listComponentRows, removeComponentRow, updateComponentCandidate } from "../../server/db/repositories";
+import { insertDocument, insertManualComponentRow, listComponentRows, removeComponentRow, updateComponentCandidate, upsertWatchlist } from "../../server/db/repositories";
 import { migrate } from "../../server/db/schema";
 
 describe("component editing", () => {
@@ -115,5 +115,33 @@ describe("component editing", () => {
 
     expect(listComponentRows(db, "doc-1")).toEqual([]);
     expect(db.prepare("SELECT COUNT(*) AS count FROM review_queue").get()).toEqual({ count: 0 });
+  });
+
+  it("keeps material information unique by CAS number across multiple MSDS documents", () => {
+    const db = new Database(":memory:");
+    migrate(db);
+
+    upsertWatchlist(db, {
+      casNo: "630-08-0",
+      chemicalName: "일산화탄소",
+      sourceName: "KOSHA 물질규제정보",
+      status: "official_api_matched",
+      checkedAt: "2026-04-28T00:00:00.000Z"
+    });
+    upsertWatchlist(db, {
+      casNo: "630-08-0",
+      chemicalName: "Carbon monoxide",
+      sourceName: "KOSHA 물질규제정보",
+      status: "official_api_matched",
+      checkedAt: "2026-04-29T00:00:00.000Z"
+    });
+
+    expect(db.prepare("SELECT cas_no AS casNo, chemical_name AS chemicalName, last_checked_at AS lastCheckedAt FROM watchlist").all()).toEqual([
+      {
+        casNo: "630-08-0",
+        chemicalName: "Carbon monoxide",
+        lastCheckedAt: "2026-04-29T00:00:00.000Z"
+      }
+    ]);
   });
 });

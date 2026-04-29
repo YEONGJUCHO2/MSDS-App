@@ -52,12 +52,12 @@ export function ProductsPage() {
   }
 
   async function deleteProduct(product: ProductSummary) {
-    if (!window.confirm(`${product.productName || "제품"} 제품/현장 연결을 삭제할까요?`)) return;
+    if (!window.confirm(`${product.productName || "제품"} 현장관리 연결을 삭제할까요?`)) return;
     setFeedback("");
     try {
       const result = await api.deleteProduct(product.productId);
       setProducts(result.products);
-      setFeedback("제품/현장 연결을 삭제했습니다.");
+      setFeedback("현장관리 연결을 삭제했습니다.");
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : "삭제에 실패했습니다.");
     }
@@ -91,7 +91,7 @@ export function ProductsPage() {
     <main className="watchlist-page">
       <section className="panel">
         <div className="panel-title">
-          <h2>제품/현장 관리</h2>
+          <h2>현장관리</h2>
           <span>{products.length}개 제품 · 업로드 MSDS {documents.length}건</span>
         </div>
         <div className="product-link-form">
@@ -146,7 +146,11 @@ export function ProductsPage() {
               return (
                 <button
                   aria-label={`${group.siteName} 현장 조회`}
-                  className={active ? "site-slot active" : "site-slot"}
+                  className={[
+                    "site-slot",
+                    active ? "active" : "",
+                    summary.needsReview > 0 ? "needs-review" : ""
+                  ].filter(Boolean).join(" ")}
                   key={group.siteName}
                   onClick={() => setSelectedSiteName(group.siteName)}
                   type="button"
@@ -160,7 +164,7 @@ export function ProductsPage() {
           </div>
         </div>
         {siteGroups.length === 0 ? (
-          <div className="empty">제품/현장 연결을 등록하면 현장별 MSDS 관리 현황이 표시됩니다.</div>
+          <div className="empty">현장관리 연결을 등록하면 현장별 MSDS 관리 현황이 표시됩니다.</div>
         ) : null}
       </section>
 

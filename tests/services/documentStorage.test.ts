@@ -39,6 +39,7 @@ describe("document storage provider", () => {
       expect(result.storagePath.startsWith(`${uploadsDir}${path.sep}`)).toBe(true);
       expect(path.basename(result.storagePath)).toBe("doc-1-sample.pdf");
       expect(result.fileHash).toBe(crypto.createHash("sha256").update(buffer).digest("hex"));
+      await expect(storage.read(result.storagePath)).resolves.toEqual(buffer);
     } finally {
       process.chdir(cwd);
       await rm(tempDir, { recursive: true, force: true });

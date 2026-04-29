@@ -10,8 +10,10 @@ describe("AI provider", () => {
   });
 
   it("selects Codex when explicitly configured", () => {
-    expect(resolveAiProvider({ MSDS_AI_PROVIDER: "codex" })).toMatchObject({
-      provider: "codex"
+    expect(resolveAiProvider({ MSDS_AI_PROVIDER: "codex", MSDS_CODEX_MODEL: "gpt-5.5", MSDS_CODEX_REASONING_EFFORT: "high" })).toMatchObject({
+      provider: "codex",
+      model: "gpt-5.5",
+      reasoningEffort: "high"
     });
   });
 

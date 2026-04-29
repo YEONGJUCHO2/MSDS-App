@@ -44,12 +44,7 @@ describe("component export format", () => {
       "제한물질",
       "허가물질",
       "유독물질",
-      "사고대비물질",
-      "중점관리물질",
-      "등록대상기존화학물질",
-      "암/돌연변이성물질",
-      "기존화학물질",
-      "잔류성오염물질"
+      "사고대비물질"
     ];
 
     expect(formatComponentForClipboard(row)).toBe([
@@ -65,15 +60,10 @@ describe("component export format", () => {
         "",
         "",
         "",
-        "Y",
-        "Y",
-        "",
+        "6개월",
         "Y",
         "",
-        "",
-        "",
-        "",
-        "",
+        "12개월",
         "",
         "",
         "",
@@ -110,7 +100,7 @@ describe("component export format", () => {
     expect(values[17]).toBe("Y");
   });
 
-  it("exports K-REACH integrated classifications into their own columns", () => {
+  it("does not export lower-priority K-REACH-only classifications into the compact internal table", () => {
     const row: Section3Row = {
       rowId: "row-1",
       rowIndex: 0,
@@ -136,11 +126,45 @@ describe("component export format", () => {
     const headers = formatComponentForClipboard(row).split("\n")[0].split("\t");
     const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
 
-    expect(values[headers.indexOf("중점관리물질")]).toBe("Y");
-    expect(values[headers.indexOf("등록대상기존화학물질")]).toBe("Y");
-    expect(values[headers.indexOf("암/돌연변이성물질")]).toBe("Y");
-    expect(values[headers.indexOf("기존화학물질")]).toBe("Y");
-    expect(values[headers.indexOf("잔류성오염물질")]).toBe("Y");
+    expect(headers).not.toContain("중점관리물질");
+    expect(headers).not.toContain("등록대상기존화학물질");
+    expect(headers).not.toContain("암/돌연변이성물질");
+    expect(headers).not.toContain("기존화학물질");
+    expect(headers).not.toContain("잔류성오염물질");
+    expect(values.slice(5).some(Boolean)).toBe(false);
+  });
+
+  it("exports KOSHA material regulation check marks into the industrial safety columns", () => {
+    const row: Section3Row = {
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "일산화탄소 630-08-0",
+      casNoCandidate: "630-08-0",
+      chemicalNameCandidate: "일산화탄소",
+      contentMinCandidate: "",
+      contentMaxCandidate: "",
+      contentSingleCandidate: "",
+      contentText: "",
+      confidence: 0.92,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review",
+      regulatoryMatches: [
+        match("controlledHazardous", "공식 API 조회됨", "10204 관리대상유해물질"),
+        match("workEnvironmentMeasurement", "공식 API 조회됨", "10202 작업환경측정대상물질 6개월"),
+        match("specialHealthExam", "공식 API 조회됨", "10210 특수건강진단대상물질 12개월"),
+        match("exposureLimit", "공식 API 조회됨", "노출기준설정물질"),
+        match("permissibleLimit", "공식 API 조회됨", "허용기준 이하 유지 대상 유해인자")
+      ]
+    };
+
+    const headers = formatComponentForClipboard(row).split("\n")[0].split("\t");
+    const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
+
+    expect(values[headers.indexOf("관리대상유해물질")]).toBe("Y");
+    expect(values[headers.indexOf("작업환경측정 대상물질")]).toBe("6개월");
+    expect(values[headers.indexOf("특수건강검진대상물질")]).toBe("12개월");
+    expect(values[headers.indexOf("노출기준설정물질")]).toBe("Y");
+    expect(values[headers.indexOf("허용기준설정물질")]).toBe("Y");
   });
 
   it("uses Korean official chemical names in the internal input format when available", () => {
@@ -165,6 +189,30 @@ describe("component export format", () => {
     const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
 
     expect(values[1]).toBe("메틸 에틸 케톡심");
+  });
+
+  it("does not treat regulatory notice text as a chemical name for silica", () => {
+    const row: Section3Row = {
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "SILICA 7631-86-9 20-30",
+      casNoCandidate: "7631-86-9",
+      chemicalNameCandidate: "SILICA",
+      contentMinCandidate: "20",
+      contentMaxCandidate: "30",
+      contentSingleCandidate: "",
+      contentText: "20-30",
+      confidence: 0.92,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review",
+      regulatoryMatches: [
+        match("chemicalInfoLookup", "공식 API 조회됨", "환경부고시 제2014-237호")
+      ]
+    };
+
+    const values = formatComponentForClipboard(row).split("\n")[1].split("\t");
+
+    expect(values[1]).toBe("이산화규소");
   });
 });
 

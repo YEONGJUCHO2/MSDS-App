@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { unlink } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import type { DocumentStorage } from "./documentStorage";
 import { resolveStorageDir } from "../db/connection";
@@ -29,6 +29,10 @@ export function createLocalDocumentStorage(): DocumentStorage {
         storagePath,
         fileHash: crypto.createHash("sha256").update(input.buffer).digest("hex")
       };
+    },
+
+    async read(storagePath) {
+      return readFile(storagePath);
     },
 
     async remove(storagePath) {

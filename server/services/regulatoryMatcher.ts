@@ -4,12 +4,14 @@ import { deleteRegulatoryMatchesForRow, getComponentRow, insertRegulatoryMatch, 
 import { lookupRegulatoryCandidates } from "./regulatoryLookup";
 import { isKecoApiConfigured, lookupKecoChemicalInfo } from "./kecoChemicalApiClient";
 import { isOfficialApiConfigured, lookupKoshaChemicalInfo } from "./koshaApiClient";
+import { isKoshaLawApiConfigured, lookupKoshaLawInfo } from "./koshaLawApiClient";
 import { resolveCasNoFromChemicalName } from "./chemicalNameResolver";
 
 export async function matchAndStoreRegulatoryData(
   db: Database.Database,
   documentId: string,
-  rows: Array<{ rowId?: string; casNoCandidate: string; chemicalNameCandidate: string }>
+  rows: Array<{ rowId?: string; casNoCandidate: string; chemicalNameCandidate: string }>,
+  options: { forceRefresh?: boolean } = {}
 ) {
   const results: Array<{ rowId: string; seedMatches: number; apiMatches: number; status: RegulatoryMatchStatus }> = [];
 
@@ -42,7 +44,7 @@ export async function matchAndStoreRegulatoryData(
       });
     }
 
-    const officialMatches = await lookupOfficialMatches(db, resolvedCasNo);
+    const officialMatches = await lookupOfficialMatches(db, resolvedCasNo, options.forceRefresh);
     for (const match of officialMatches) {
       insertRegulatoryMatch(db, {
         rowId: row.rowId,
@@ -83,8 +85,28 @@ export async function recheckComponentRegulatoryData(db: Database.Database, docu
     throw new Error("Component row not found");
   }
 
-  const [result] = await matchAndStoreRegulatoryData(db, documentId, [row]);
+  const [result] = await matchAndStoreRegulatoryData(db, documentId, [row], { forceRefresh: true });
   return result;
+}
+
+export async function recheckDocumentRegulatoryData(db: Database.Database, documentId: string) {
+  const rows = db.prepare(`
+    SELECT
+      row_id AS rowId,
+      cas_no_candidate AS casNoCandidate,
+      chemical_name_candidate AS chemicalNameCandidate
+    FROM components
+    WHERE document_id = ?
+    ORDER BY row_index ASC
+  `).all(documentId) as Array<{ rowId: string; casNoCandidate: string; chemicalNameCandidate: string }>;
+  const results = await matchAndStoreRegulatoryData(db, documentId, rows, { forceRefresh: true });
+
+  return {
+    documentId,
+    checkedRows: rows.length,
+    matchedRows: results.filter((result) => result.status === "official_api_matched" || result.status === "internal_seed_matched").length,
+    results
+  };
 }
 
 export async function recheckWatchlistRegulatoryData(db: Database.Database, watchIds?: string[]) {
@@ -160,7 +182,15 @@ export async function lookupOfficialMatches(db: Database.Database, casNo: string
     kecoMatches = [];
   }
 
-  if (kecoMatches.length > 0) return kecoMatches;
+  let koshaLawMatches: Awaited<ReturnType<typeof lookupKoshaLawInfo>>["matches"] = [];
+  try {
+    koshaLawMatches = (await lookupKoshaLawInfo(db, casNo, fetch, { forceRefresh })).matches;
+  } catch {
+    koshaLawMatches = [];
+  }
+
+  const regulationMatches = [...kecoMatches, ...koshaLawMatches];
+  if (regulationMatches.length > 0) return regulationMatches;
 
   try {
     return (await lookupKoshaChemicalInfo(db, casNo, fetch, { forceRefresh })).matches;
@@ -172,7 +202,7 @@ export async function lookupOfficialMatches(db: Database.Database, casNo: string
 export function chooseStatus(seedMatches: number, officialMatches: number): RegulatoryMatchStatus {
   if (officialMatches > 0) return "official_api_matched";
   if (seedMatches > 0) return "internal_seed_matched";
-  if (!isKecoApiConfigured() && !isOfficialApiConfigured()) return "api_key_required";
+  if (!isKecoApiConfigured() && !isOfficialApiConfigured() && !isKoshaLawApiConfigured()) return "api_key_required";
   return "no_match";
 }
 
