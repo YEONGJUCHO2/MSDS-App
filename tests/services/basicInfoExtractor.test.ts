@@ -132,4 +132,30 @@ describe("extractDocumentBasicInfo", () => {
       "용도": "내화물 보수재"
     });
   });
+
+  it("reads Korean section labels with 가나다 prefixes from KOSHA-style Excel text", () => {
+    const fields = extractDocumentBasicInfo({
+      fileName: "복사본 부정형 2_CA-90R.xlsx",
+      queueCount: 0,
+      textContent: [
+        "1. 화학제품과 회사에 관한 정보",
+        "가. 제품명",
+        "- CA-90R",
+        "나. 제품의 권고 용도와 사용상의 제한",
+        "- 용도\t: 내화/방연제",
+        "다. 제조자/공급자/유통업자 정보",
+        "○ 제조자 정보",
+        "- 회사명\t: 포스코퓨처엠",
+        "- 전화번호\t054-290-0538",
+        "2. 유해성·위험성"
+      ].join("\n")
+    });
+
+    expect(Object.fromEntries(fields.map((field) => [field.label, field.value]))).toMatchObject({
+      "공급사": "포스코퓨처엠",
+      "대표전화": "054-290-0538",
+      "제품명": "CA-90R",
+      "용도": "내화/방연제"
+    });
+  });
 });

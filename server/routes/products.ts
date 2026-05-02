@@ -106,6 +106,7 @@ function listProducts() {
       products.site_names AS siteNames,
       products.registration_status AS registrationStatus,
       COALESCE(documents.status, '') AS documentStatus,
+      COALESCE(documents.review_state, 'approved') AS documentReviewState,
       COUNT(DISTINCT components.row_id) AS componentCount,
       COUNT(DISTINCT review_queue.queue_id)
         + COUNT(DISTINCT official_review_matches.match_id) AS queueCount

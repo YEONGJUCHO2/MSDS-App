@@ -65,6 +65,12 @@ export const api = {
   documentFileUrl: (documentId: string) => resolveApiUrl(`/api/documents/${documentId}/file`),
   deleteDocument: (documentId: string) =>
     request<{ documentId: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}`, { method: "DELETE" }),
+  renameDocument: (documentId: string, fileName: string) =>
+    request<{ documentId: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileName })
+    }),
   documentBasicInfo: (documentId: string) => request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`),
   saveDocumentBasicInfo: (documentId: string, fields: BasicInfoField[]) =>
     request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`, {
@@ -123,6 +129,14 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     return request<{ documentId: string; status: string; message: string }>("/api/documents/upload", { method: "POST", body: form });
+  },
+  uploadReplacement: (documentId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ documentId: string; status: string; message: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}/replacement`, {
+      method: "POST",
+      body: form
+    });
   },
   uploadBatch: (files: File[]) => {
     const form = new FormData();

@@ -1,6 +1,17 @@
 import type Database from "better-sqlite3";
 import type { RegulatoryMatchStatus } from "../../shared/types";
-import { deleteRegulatoryMatchesForRow, getComponentRow, insertRegulatoryMatch, updateComponentAiReview, updateComponentCasCandidate, updateComponentRegulatoryStatus, upsertWatchlist } from "../db/repositories";
+import {
+  deleteRegulatoryMatchesForRow,
+  getComponentRow,
+  insertRegulatoryMatch,
+  listOfficialReviewMatchKeysForDocument,
+  markDocumentNeedsReview,
+  touchDocumentRegulatoryCheckedAt,
+  updateComponentAiReview,
+  updateComponentCasCandidate,
+  updateComponentRegulatoryStatus,
+  upsertWatchlist
+} from "../db/repositories";
 import { lookupRegulatoryCandidates } from "./regulatoryLookup";
 import { isKecoApiConfigured, lookupKecoChemicalInfo } from "./kecoChemicalApiClient";
 import { isOfficialApiConfigured, lookupKoshaChemicalInfo } from "./koshaApiClient";
@@ -90,6 +101,7 @@ export async function recheckComponentRegulatoryData(db: Database.Database, docu
 }
 
 export async function recheckDocumentRegulatoryData(db: Database.Database, documentId: string) {
+  const beforeOfficialReviewKeys = listOfficialReviewMatchKeysForDocument(db, documentId);
   const rows = db.prepare(`
     SELECT
       row_id AS rowId,
@@ -100,6 +112,13 @@ export async function recheckDocumentRegulatoryData(db: Database.Database, docum
     ORDER BY row_index ASC
   `).all(documentId) as Array<{ rowId: string; casNoCandidate: string; chemicalNameCandidate: string }>;
   const results = await matchAndStoreRegulatoryData(db, documentId, rows, { forceRefresh: true });
+  const afterOfficialReviewKeys = listOfficialReviewMatchKeysForDocument(db, documentId);
+  const hasNewOfficialReviewHit = Array.from(afterOfficialReviewKeys).some((key) => !beforeOfficialReviewKeys.has(key));
+  if (hasNewOfficialReviewHit) {
+    markDocumentNeedsReview(db, documentId, "official_regulatory_hit");
+  } else {
+    touchDocumentRegulatoryCheckedAt(db, documentId);
+  }
 
   return {
     documentId,

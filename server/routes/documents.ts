@@ -4,11 +4,15 @@ import { nanoid } from "nanoid";
 import { getDb } from "../db/connection";
 import {
   deleteDocumentRecord,
+  approveDocumentAfterReplacement,
+  getDocumentStoragePath,
   insertDocument,
   insertManualComponentRow,
   listComponentRows,
   listDocumentBasicInfo,
   listDocuments,
+  prepareDocumentReplacement,
+  renameDocument,
   removeComponentRow,
   upsertGeneratedDocumentBasicInfo,
   upsertDocumentBasicInfo,
@@ -51,7 +55,8 @@ documentsRouter.get("/:documentId/file", async (req, res, next) => {
 
     const buffer = await createDocumentStorage().read(document.storagePath);
     res.setHeader("Content-Type", contentTypeForFileName(document.fileName));
-    res.setHeader("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(document.fileName)}`);
+    const disposition = document.fileName.toLowerCase().endsWith(".pdf") ? "inline" : "attachment";
+    res.setHeader("Content-Disposition", `${disposition}; filename*=UTF-8''${encodeURIComponent(document.fileName)}`);
     res.send(buffer);
   } catch (error) {
     next(error);
@@ -96,6 +101,20 @@ documentsRouter.delete("/:documentId", async (req, res, next) => {
     }
     if (deleted.storagePath) {
       await createDocumentStorage().remove(deleted.storagePath);
+    }
+    res.json({ documentId: req.params.documentId, documents: listDocuments(getDb()) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+documentsRouter.patch("/:documentId", (req, res, next) => {
+  try {
+    const fileName = String(req.body?.fileName ?? "").trim();
+    const renamed = renameDocument(getDb(), req.params.documentId, fileName);
+    if (!renamed) {
+      res.status(404).json({ error: "document not found" });
+      return;
     }
     res.json({ documentId: req.params.documentId, documents: listDocuments(getDb()) });
   } catch (error) {
@@ -266,6 +285,61 @@ documentsRouter.post("/:documentId/components", (req, res, next) => {
     const input = readComponentCandidateBody(req.body);
     const rowId = insertManualComponentRow(getDb(), req.params.documentId, input);
     res.json({ rowId, rows: listComponentRows(getDb(), req.params.documentId) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+documentsRouter.post("/:documentId/replacement", upload.single("file"), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ error: "file is required" });
+      return;
+    }
+
+    const db = getDb();
+    const documentId = String(req.params.documentId);
+    const existing = getDocumentStoragePath(db, documentId);
+    if (!existing) {
+      res.status(404).json({ error: "document not found" });
+      return;
+    }
+
+    const fileName = normalizeUploadedFileName(req.file.originalname);
+    const stored = await createDocumentStorage().save({
+      documentId,
+      fileName,
+      buffer: req.file.buffer
+    });
+    prepareDocumentReplacement(db, {
+      documentId,
+      fileName,
+      fileHash: stored.fileHash,
+      storagePath: stored.storagePath
+    });
+
+    const extracted = await extractUploadedDocumentText(fileName, req.file.buffer);
+    const result = await processExtractedText(db, {
+      documentId,
+      fileName,
+      fileHash: stored.fileHash,
+      storagePath: stored.storagePath,
+      text: extracted.text,
+      pageCount: extracted.pageCount,
+      pdfBuffer: extracted.kind === "pdf" ? req.file.buffer : undefined,
+      ocrAdapter: createUploadOcrAdapter()
+    });
+    approveDocumentAfterReplacement(db, documentId);
+    if (existing.storagePath && existing.storagePath !== stored.storagePath) {
+      await createDocumentStorage().remove(existing.storagePath);
+    }
+
+    res.json({
+      documentId,
+      status: "approved",
+      message: result.message,
+      documents: listDocuments(db)
+    });
   } catch (error) {
     next(error);
   }

@@ -29,12 +29,13 @@ export function extractDocumentBasicInfo(input: BasicInfoInput) {
   const text = input.textContent.replace(/\r/g, "\n");
   const normalizedFileName = normalizeUploadedFileName(input.fileName);
   const sectionOneBlock = extractSectionOneLabelBlock(text);
+  const productNameFromText = sectionOneBlock.productName || extractByLabels(text, ["제품명", "제품의 명칭", "화학제품명"]);
   const values: Record<string, Omit<BasicInfoField, "key" | "label">> = {
     supplier: value(sectionOneBlock.supplier || extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "공급회사명", "공급사", "공급자", "공급업체", "회사명"]), "msds_text"),
-    manufacturer: value(sectionOneBlock.manufacturer || extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "공급회사명", "제조사", "제조업체", "제조자"]), "msds_text"),
+    manufacturer: value(sectionOneBlock.manufacturer || extractByLabels(text, ["생산 및 공급 회사명", "제조-공급회사명", "공급회사명", "제조사", "제조업체", "제조자", "회사명"]), "msds_text"),
     phone: value(sectionOneBlock.phone || extractPhone(text), "msds_text"),
     email: value(extractEmail(text), "msds_text"),
-    productName: value(sectionOneBlock.productName || extractByLabels(text, ["제품명", "제품의 명칭", "화학제품명"]) || stripPdf(normalizedFileName), "file_name"),
+    productName: value(productNameFromText || stripKnownExtension(normalizedFileName), productNameFromText ? "msds_text" : "file_name"),
     usage: value(sectionOneBlock.usage || extractByLabels(text, ["용도", "용 도", "제품의 권고 용도", "권고 용도"]), "msds_text"),
     itemCode: value("", "manual_required"),
     msdsNumber: value(extractMsdsNumber(text), "msds_text"),
@@ -57,8 +58,8 @@ function value(valueText: string, source: BasicInfoField["source"]) {
   return { value: valueText.trim(), source: valueText.trim() ? source : "manual_required" as const };
 }
 
-function stripPdf(fileName: string) {
-  return fileName.replace(/\.pdf$/i, "");
+function stripKnownExtension(fileName: string) {
+  return fileName.replace(/\.(pdf|docx|xlsx|csv)$/i, "");
 }
 
 function extractByLabels(text: string, labels: string[]) {
@@ -67,8 +68,8 @@ function extractByLabels(text: string, labels: string[]) {
     const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     for (let index = 0; index < lines.length; index += 1) {
       const line = stripLinePrefix(lines[index]);
-      const match = line.match(new RegExp(`^${escaped}\\s*[:：]?\\s*(.+)$`, "i"));
-      const cleaned = cleanupValue(match?.[1] ?? "");
+      const match = line.match(new RegExp(`^${escaped}(?:\\s*[:：]\\s*(.+)|\\s+(.+))$`, "i"));
+      const cleaned = cleanupValue(match?.[1] ?? match?.[2] ?? "");
       if (cleaned && !looksLikeLabelOnly(cleaned)) return cleaned;
       if (line.match(new RegExp(`^${escaped}\\s*[:：]?\\s*$`, "i"))) {
         const nextValue = findNextValue(lines, index + 1);
@@ -118,6 +119,13 @@ function extractSectionOneLabelBlock(text: string) {
   }
 
   if (labels.length < 2) return {};
+
+  const hasInterleavedValues = labels.some((label) => {
+    if (label.key === "phone") return false;
+    const nextValue = sectionLines[label.index + 1];
+    return Boolean(nextValue && !looksLikeLabelOnly(nextValue) && !looksLikeSectionTitle(nextValue) && !looksLikeAddress(nextValue));
+  });
+  if (hasInterleavedValues) return {};
 
   const valueStart = Math.max(...labels.map((label) => label.index)) + 1;
   const valueLines = sectionLines.slice(valueStart).filter((line) => !looksLikeLabelOnly(line) && !looksLikeSectionTitle(line) && !looksLikeAddress(line));
@@ -180,6 +188,7 @@ function cleanupValue(valueText: string) {
 function stripLinePrefix(line: string) {
   return line
     .replace(/^[◦•\-.\s]+/, "")
+    .replace(/^[가-하][.)]\s*/, "")
     .replace(/^\d+(?:-\d+)?[.)]\s*/, "")
     .trim();
 }

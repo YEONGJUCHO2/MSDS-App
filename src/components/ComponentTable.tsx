@@ -10,6 +10,7 @@ import {
 import type { ComponentCandidatePayload } from "../api/client";
 
 interface ComponentTableProps {
+  highlightOfficialReviewHits?: boolean;
   rows: Section3Row[];
   onAdd?: (payload: ComponentCandidatePayload, recheckAfterSave: boolean) => void;
   onUpdate?: (rowId: string, payload: ComponentCandidatePayload, recheckAfterSave: boolean) => void;
@@ -25,7 +26,7 @@ const blankCandidate: ComponentCandidatePayload = {
   contentSingleCandidate: ""
 };
 
-export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: ComponentTableProps) {
+export function ComponentTable({ highlightOfficialReviewHits = true, rows, onAdd, onRemove, onRecheck, onUpdate }: ComponentTableProps) {
   const exportHitCount = countComponentExportRegulatoryHits(rows);
   const hasOfficialOnlyMatches = hasOfficialLookupOnlyMatches(rows);
   const [editingRowId, setEditingRowId] = useState("");
@@ -156,7 +157,7 @@ export function ComponentTable({ rows, onAdd, onRemove, onRecheck, onUpdate }: C
                     <>
                       {formatComponentExportRow(row).map((value, index) => {
                         const column = REGULATORY_COMPONENT_EXPORT_COLUMNS[index];
-                        const officialReviewHit = Boolean(value && hasOfficialApiColumnHit(row, column));
+                        const officialReviewHit = highlightOfficialReviewHits && Boolean(value && hasOfficialApiColumnHit(row, column));
                         return (
                         <td
                           className={[

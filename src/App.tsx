@@ -1,4 +1,4 @@
-import { ClipboardList, Database, FileDiff, Gauge, ListChecks, Upload } from "lucide-react";
+import { ClipboardList, Database, Gauge, ListChecks, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DocumentSummary, ReviewQueueItem } from "../shared/types";
 import { api } from "./api/client";
@@ -6,7 +6,6 @@ import { useUploadTask } from "./hooks/useUploadTask";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ReviewPage } from "./pages/ReviewPage";
-import { RevisionDiffPage } from "./pages/RevisionDiffPage";
 import { SchedulesPage } from "./pages/SchedulesPage";
 import { UploadPage, UploadTaskFeedback } from "./pages/UploadPage";
 import { WatchlistPage } from "./pages/WatchlistPage";
@@ -16,8 +15,7 @@ const navItems = [
   { id: "upload", label: "업로드", icon: Upload },
   { id: "review", label: "MSDS", icon: ClipboardList },
   { id: "queues", label: "물질정보", icon: ListChecks },
-  { id: "products", label: "현장관리", icon: Database },
-  { id: "revisions", label: "개정 비교", icon: FileDiff }
+  { id: "products", label: "현장관리", icon: Database }
 ];
 
 export default function App() {
@@ -71,6 +69,18 @@ export default function App() {
     return result;
   }
 
+  async function handleRenameDocument(documentId: string, fileName: string) {
+    const result = await api.renameDocument(documentId, fileName);
+    setDocuments(result.documents);
+  }
+
+  async function handleUploadReplacement(documentId: string, file: File) {
+    const result = await api.uploadReplacement(documentId, file);
+    setDocuments(result.documents);
+    const queueResult = await api.queues();
+    setQueueItems(queueResult.items);
+  }
+
   return (
     <div className="app-shell" data-testid="app-shell">
       <nav className="app-nav" data-testid="app-nav">
@@ -99,7 +109,9 @@ export default function App() {
             onDeleteDocuments={(documentIds) => void handleDeleteDocuments(documentIds)}
             onNavigate={setPage}
             onOpenDocument={openDocumentInReview}
+            onRenameDocument={(documentId, fileName) => void handleRenameDocument(documentId, fileName)}
             onRecheckDocuments={handleRecheckDocuments}
+            onUploadReplacement={(documentId, file) => void handleUploadReplacement(documentId, file)}
           />
         ) : null}
         {page === "upload" ? <UploadPage uploadTask={upload.task} onFilesSelected={upload.startUpload} /> : null}
@@ -110,11 +122,12 @@ export default function App() {
             onDeleteDocument={(documentId) => void handleDeleteDocument(documentId)}
             onDeleteDocuments={(documentIds) => void handleDeleteDocuments(documentIds)}
             onDocumentsRechecked={refresh}
+            onRenameDocument={(documentId, fileName) => void handleRenameDocument(documentId, fileName)}
+            onUploadReplacement={(documentId, file) => void handleUploadReplacement(documentId, file)}
           />
         ) : null}
         {page === "queues" ? <WatchlistPage /> : null}
         {page === "products" ? <ProductsPage /> : null}
-        {page === "revisions" ? <RevisionDiffPage /> : null}
         {page === "schedules" ? <SchedulesPage /> : null}
         {page === "watchlist" ? <WatchlistPage /> : null}
       </div>

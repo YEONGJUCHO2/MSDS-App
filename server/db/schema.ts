@@ -10,6 +10,12 @@ export function migrate(db: Database.Database) {
       file_hash TEXT NOT NULL,
       storage_path TEXT NOT NULL,
       status TEXT NOT NULL,
+      review_state TEXT NOT NULL DEFAULT 'approved',
+      review_reason TEXT NOT NULL DEFAULT '',
+      review_required_at TEXT NOT NULL DEFAULT '',
+      review_completed_at TEXT NOT NULL DEFAULT '',
+      last_regulatory_checked_at TEXT NOT NULL DEFAULT '',
+      replacement_uploaded_at TEXT NOT NULL DEFAULT '',
       uploaded_at TEXT NOT NULL,
       text_content TEXT NOT NULL DEFAULT '',
       page_count INTEGER NOT NULL DEFAULT 0
@@ -149,6 +155,12 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, "review_queue", "entity_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "products", "document_id", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "products", "document_file_name", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "documents", "review_state", "TEXT NOT NULL DEFAULT 'approved'");
+  ensureColumn(db, "documents", "review_reason", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "documents", "review_required_at", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "documents", "review_completed_at", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "documents", "last_regulatory_checked_at", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "documents", "replacement_uploaded_at", "TEXT NOT NULL DEFAULT ''");
 }
 
 function ensureColumn(db: Database.Database, tableName: string, columnName: string, definition: string) {

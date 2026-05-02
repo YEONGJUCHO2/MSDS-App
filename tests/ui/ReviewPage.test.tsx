@@ -178,7 +178,7 @@ describe("ReviewPage", () => {
 
     await waitFor(() => expect(api.components).toHaveBeenLastCalledWith("doc-2"));
     expect(screen.getByRole("columnheader", { name: "첨부파일" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "second.pdf 첨부파일 다운로드" })).toHaveAttribute("href", "/api/documents/doc-2/file");
+    expect(screen.getByRole("link", { name: "second.pdf 첨부파일 열기" })).toHaveAttribute("href", "/api/documents/doc-2/file");
     expect(screen.getByRole("button", { name: "second.pdf 삭제" })).toHaveClass("icon-danger-action");
   });
 });

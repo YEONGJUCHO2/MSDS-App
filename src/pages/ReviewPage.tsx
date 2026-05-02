@@ -1,3 +1,4 @@
+import { Calendar, Paperclip, Pencil } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { BasicInfoField, DocumentSummary, RegulatoryRecheckResult, Section3Row } from "../../shared/types";
 import { api, type ComponentCandidatePayload } from "../api/client";
@@ -12,12 +13,16 @@ export function ReviewPage({
   onDeleteDocument,
   onDeleteDocuments,
   onDocumentsRechecked,
+  onRenameDocument,
+  onUploadReplacement,
   selectedDocumentId = ""
 }: {
   documents: DocumentSummary[];
   onDeleteDocument: (documentId: string) => void;
   onDeleteDocuments?: (documentIds: string[]) => void;
   onDocumentsRechecked?: () => void | Promise<void>;
+  onRenameDocument?: (documentId: string, fileName: string) => void | Promise<void>;
+  onUploadReplacement?: (documentId: string, file: File) => void | Promise<void>;
   selectedDocumentId?: string;
 }) {
   const [selectedId, setSelectedId] = useState(documents[0]?.documentId ?? "");
@@ -28,20 +33,33 @@ export function ReviewPage({
   const [recheckMessages, setRecheckMessages] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [dateFilterOpen, setDateFilterOpen] = useState(false);
+  const [reviewStateFilter, setReviewStateFilter] = useState("all");
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(() => new Set());
+  const [renameDrafts, setRenameDrafts] = useState<Record<string, string>>({});
+  const [editingDocumentId, setEditingDocumentId] = useState("");
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchMessage, setBatchMessage] = useState("");
   const filteredDocuments = useMemo(() => {
     const normalizedQuery = normalizeSearchText(query);
-    if (!normalizedQuery) return documents;
-    return documents.filter((document) => [
-      document.fileName,
-      displayDocumentState(document),
-      document.uploadedAt.slice(0, 10),
-      String(document.componentCount),
-      String(document.queueCount)
-    ].some((value) => normalizeSearchText(value).includes(normalizedQuery)));
-  }, [documents, query]);
+    return documents.filter((document) => {
+      const uploadedDate = document.uploadedAt.slice(0, 10);
+      const reviewState = getDocumentReviewState(document);
+      const matchesQuery = !normalizedQuery || [
+        document.fileName,
+        displayDocumentState(document),
+        uploadedDate,
+        String(document.componentCount),
+        String(document.queueCount)
+      ].some((value) => normalizeSearchText(value).includes(normalizedQuery));
+      const matchesDateFrom = !dateFrom || uploadedDate >= dateFrom;
+      const matchesDateTo = !dateTo || uploadedDate <= dateTo;
+      const matchesReviewState = reviewStateFilter === "all" || reviewState === reviewStateFilter;
+      return matchesQuery && matchesDateFrom && matchesDateTo && matchesReviewState;
+    });
+  }, [dateFrom, dateTo, documents, query, reviewStateFilter]);
   const pageCount = Math.max(1, Math.ceil(filteredDocuments.length / DOCUMENTS_PER_PAGE));
   const pageDocuments = useMemo(() => filteredDocuments.slice((page - 1) * DOCUMENTS_PER_PAGE, page * DOCUMENTS_PER_PAGE), [filteredDocuments, page]);
   const visibleIds = pageDocuments.map((document) => document.documentId);
@@ -59,7 +77,7 @@ export function ReviewPage({
 
   useEffect(() => {
     setPage(1);
-  }, [documents, query]);
+  }, [dateFrom, dateTo, documents, query, reviewStateFilter]);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -210,6 +228,36 @@ export function ReviewPage({
     }
   }
 
+  function handleRename(documentId: string, fallbackFileName: string) {
+    const nextFileName = (renameDrafts[documentId] ?? fallbackFileName).trim();
+    if (!nextFileName || nextFileName === fallbackFileName) return;
+    void onRenameDocument?.(documentId, nextFileName);
+    setEditingDocumentId("");
+  }
+
+  function startRename(documentId: string, fileName: string) {
+    setRenameDrafts((current) => ({ ...current, [documentId]: current[documentId] ?? fileName }));
+    setEditingDocumentId(documentId);
+  }
+
+  function handleDateFromChange(value: string) {
+    setDateFrom(value);
+    if (!value) return;
+    setDateTo((current) => clampDateToRange(value, current));
+  }
+
+  function handleDateToChange(value: string) {
+    setDateTo(dateFrom ? clampDateToRange(dateFrom, value) : value);
+  }
+
+  function handleReplacement(documentId: string, fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) return;
+    void onUploadReplacement?.(documentId, file);
+  }
+
+  const selectedDocument = documents.find((document) => document.documentId === selectedId);
+
   return (
     <main className="review-layout review-flow">
       <section className="panel wide msds-list-panel">
@@ -223,6 +271,30 @@ export function ReviewPage({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
+          </label>
+          <button aria-expanded={dateFilterOpen} className="icon-text-button" onClick={() => setDateFilterOpen((current) => !current)} type="button">
+            <Calendar aria-hidden="true" size={16} />
+            등록일 조회
+          </button>
+          {dateFilterOpen ? (
+            <>
+              <label className="dashboard-search compact-filter">
+                <span>등록 시작일</span>
+                <input aria-label="등록 시작일" max={dateTo || undefined} min={dateTo ? addMonthsToDateInput(dateTo, -6) : undefined} type="date" value={dateFrom} onChange={(event) => handleDateFromChange(event.target.value)} />
+              </label>
+              <label className="dashboard-search compact-filter">
+                <span>등록 종료일</span>
+                <input aria-label="등록 종료일" max={dateFrom ? addMonthsToDateInput(dateFrom, 6) : undefined} min={dateFrom || undefined} type="date" value={dateTo} onChange={(event) => handleDateToChange(event.target.value)} />
+              </label>
+            </>
+          ) : null}
+          <label className="dashboard-search compact-filter">
+            <span>검수 상태</span>
+            <select aria-label="검수 상태" value={reviewStateFilter} onChange={(event) => setReviewStateFilter(event.target.value)}>
+              <option value="all">전체</option>
+              <option value="approved">검수 완료</option>
+              <option value="needs_review">검수 필요</option>
+            </select>
           </label>
           <button disabled={batchBusy || selectedDocumentIds.size === 0} onClick={() => void handleBatchRecheck()} type="button">선택 조회/재조회</button>
           <button disabled={selectedDocumentIds.size === 0} onClick={handleSelectedDownload} type="button">선택 첨부 다운로드</button>
@@ -265,16 +337,44 @@ export function ReviewPage({
                   </td>
                   <td>{(page - 1) * DOCUMENTS_PER_PAGE + index + 1}</td>
                   <td>
-                    <button aria-label={`${document.fileName} MSDS 선택`} className="document-file-button" onClick={() => setSelectedId(document.documentId)} title={document.fileName} type="button">
-                      {truncateFileName(document.fileName)}
-                    </button>
+                    <span className="document-file-title-row">
+                      <button aria-label={`${document.fileName} MSDS 선택`} className="document-file-button" onClick={() => setSelectedId(document.documentId)} title={document.fileName} type="button">
+                        {truncateFileName(document.fileName)}
+                      </button>
+                      {onRenameDocument ? (
+                        <button aria-label={`${document.fileName} 이름 수정`} className="title-icon-button" onClick={() => startRename(document.documentId, document.fileName)} title="이름 수정" type="button">
+                          <Pencil aria-hidden="true" size={14} />
+                        </button>
+                      ) : null}
+                    </span>
+                    {onRenameDocument && editingDocumentId === document.documentId ? (
+                      <span className="document-rename-control">
+                        <input
+                          aria-label={`${document.fileName} 이름 변경`}
+                          value={renameDrafts[document.documentId] ?? document.fileName}
+                          onChange={(event) => setRenameDrafts((current) => ({ ...current, [document.documentId]: event.target.value }))}
+                        />
+                        <button aria-label={`${document.fileName} 이름 저장`} onClick={() => handleRename(document.documentId, document.fileName)} type="button">저장</button>
+                      </span>
+                    ) : null}
                     <span className="document-meta">화학물질 {document.componentCount} · 검수 {document.queueCount}</span>
                     <span className="sr-only">{document.uploadedAt.slice(0, 10)} · 화학물질 {document.componentCount} · 검수 {document.queueCount}</span>
                   </td>
                   <td>{document.uploadedAt.slice(0, 10)}</td>
                   <td><code>{displayDocumentState(document)}</code></td>
-                  <td className="document-row-actions">
-                    <a aria-label={`${document.fileName} 첨부파일 다운로드`} className="secondary-action" href={api.documentFileUrl(document.documentId)}>첨부</a>
+                  <td>
+                    <div className="document-row-actions">
+                      <a aria-label={`${document.fileName} 첨부파일 열기`} className="secondary-action attachment-action" href={api.documentFileUrl(document.documentId)} target="_blank" rel="noreferrer">
+                        <Paperclip aria-hidden="true" size={14} />
+                        첨부
+                      </a>
+                      {onUploadReplacement && isDocumentReviewNeeded(document) ? (
+                        <label className="secondary-action replacement-action">
+                          재첨부
+                          <input aria-label={`${document.fileName} 새 MSDS 재첨부`} type="file" accept=".pdf,.docx,.xlsx,.csv,application/pdf" onChange={(event) => handleReplacement(document.documentId, event.target.files)} />
+                        </label>
+                      ) : null}
+                    </div>
                   </td>
                   <td>
                     <button aria-label={`${document.fileName} 삭제`} className="icon-danger-action" onClick={() => onDeleteDocument(document.documentId)} type="button">X</button>
@@ -307,6 +407,7 @@ export function ReviewPage({
         <BasicInfoPanel documentId={selectedId} fields={basicInfoFields} isLoading={basicInfoLoading} onSave={handleSaveBasicInfo} />
         <ComponentTable
           rows={rows}
+          highlightOfficialReviewHits={isDocumentReviewNeeded(selectedDocument)}
           onAdd={handleAdd}
           onRemove={handleRemove}
           onRecheck={handleRecheck}
@@ -331,13 +432,42 @@ function normalizeSearchText(value: string) {
 }
 
 function displayDocumentState(document: DocumentSummary) {
+  const reviewState = getDocumentReviewState(document);
+  if (reviewState === "needs_review") return "검수 필요";
+  if (reviewState === "approved" && document.componentCount > 0) return "검수 완료";
   if (document.queueCount > 0) return "검수 필요";
   if (document.componentCount > 0) return "등록됨";
   return "분석 필요";
 }
 
+function getDocumentReviewState(document: DocumentSummary | undefined) {
+  if (!document) return "unknown";
+  if (document.reviewState) return document.reviewState;
+  if (document.queueCount > 0) return "needs_review";
+  if (document.componentCount > 0) return "approved";
+  return "unknown";
+}
+
+function isDocumentReviewNeeded(document: DocumentSummary | undefined) {
+  return getDocumentReviewState(document) === "needs_review";
+}
+
 function truncateFileName(fileName: string) {
   return fileName.length > 20 ? `${fileName.slice(0, 20)}...` : fileName;
+}
+
+function clampDateToRange(dateFrom: string, nextDateTo: string) {
+  if (!nextDateTo) return nextDateTo;
+  if (nextDateTo < dateFrom) return dateFrom;
+  const maxDateTo = addMonthsToDateInput(dateFrom, 6);
+  return nextDateTo > maxDateTo ? maxDateTo : nextDateTo;
+}
+
+function addMonthsToDateInput(value: string, months: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return value;
+  const date = new Date(Date.UTC(year, month - 1 + months, day));
+  return date.toISOString().slice(0, 10);
 }
 
 function describeRecheckResult(result: RegulatoryRecheckResult) {

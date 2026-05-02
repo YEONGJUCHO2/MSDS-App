@@ -1,3 +1,4 @@
+import { Paperclip } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { DocumentSummary, ProductSummary } from "../../shared/types";
 import { api } from "../api/client";
@@ -7,6 +8,7 @@ export function ProductsPage() {
   const [documents, setDocuments] = useState<DocumentSummary[]>([]);
   const [selectedDocumentIds, setSelectedDocumentIds] = useState<string[]>([]);
   const [documentSearch, setDocumentSearch] = useState("");
+  const [documentStatusFilter, setDocumentStatusFilter] = useState("all");
   const [siteNames, setSiteNames] = useState("");
   const [selectedSiteName, setSelectedSiteName] = useState("");
   const [search, setSearch] = useState("");
@@ -82,7 +84,11 @@ export function ProductsPage() {
   const selectedDocuments = selectedDocumentIds
     .map((documentId) => documents.find((document) => document.documentId === documentId))
     .filter((document): document is DocumentSummary => Boolean(document));
-  const filteredDocuments = documents.filter((document) => toSearchValue(document.fileName).includes(toSearchValue(documentSearch)));
+  const filteredDocuments = documents.filter((document) => {
+    const reviewState = document.reviewState ?? ((document.queueCount ?? 0) > 0 ? "needs_review" : "approved");
+    return toSearchValue(document.fileName).includes(toSearchValue(documentSearch))
+      && (documentStatusFilter === "all" || documentStatusFilter === reviewState);
+  });
   const documentResultLabel = documentSearch.trim()
     ? `검색 결과 ${filteredDocuments.length}건`
     : `전체 ${documents.length}건`;
@@ -99,6 +105,14 @@ export function ProductsPage() {
             <label>
               MSDS 검색
               <input placeholder="파일명으로 검색" value={documentSearch} onChange={(event) => setDocumentSearch(event.target.value)} />
+            </label>
+            <label>
+              검수 상태
+              <select value={documentStatusFilter} onChange={(event) => setDocumentStatusFilter(event.target.value)}>
+                <option value="all">전체</option>
+                <option value="approved">검수 완료</option>
+                <option value="needs_review">검수 필요</option>
+              </select>
             </label>
             <div className="document-picker-meta">
               <span>{documents.length === 0 ? "업로드된 MSDS 없음" : documentResultLabel}</span>
@@ -182,7 +196,7 @@ export function ProductsPage() {
             상태
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               <option value="all">전체</option>
-              <option value="normal">정상</option>
+              <option value="approved">검수 완료</option>
               <option value="needs_review">검수 필요</option>
               <option value="revision_needed">개정 필요</option>
               <option value="unlinked">MSDS 미연결</option>
@@ -204,6 +218,17 @@ export function ProductsPage() {
               </div>
               <span>{product.siteNames || "현장 미연결"}</span>
               <span className={`status-pill ${status.key}`}>{status.label}</span>
+              {product.documentId ? (
+                <button
+                  aria-label={`${product.documentFileName || product.productName} 첨부파일 열기`}
+                  className="table-action"
+                  onClick={() => openProductAttachment(product)}
+                  type="button"
+                >
+                  <Paperclip aria-hidden="true" size={14} />
+                  첨부
+                </button>
+              ) : null}
               <button
                 aria-label={`${product.productName || "제품"} 제품 삭제`}
                 className="table-action danger"
@@ -252,9 +277,18 @@ function summarizeSiteGroup(products: ProductSummary[]) {
 
 function productManagementStatus(product: ProductSummary) {
   if (!product.documentId) return { key: "unlinked", label: "MSDS 미연결" };
+  if (product.documentReviewState === "needs_review") return { key: "needs_review", label: "검수 필요" };
+  if (product.documentReviewState === "approved") return { key: "approved", label: "검수 완료" };
   if (product.registrationStatus.includes("revision") || product.registrationStatus.includes("개정")) {
     return { key: "revision_needed", label: "개정 필요" };
   }
   if ((product.queueCount ?? 0) > 0) return { key: "needs_review", label: "검수 필요" };
-  return { key: "normal", label: "정상" };
+  return { key: "approved", label: "검수 완료" };
+}
+
+function openProductAttachment(product: ProductSummary) {
+  if (productManagementStatus(product).key === "needs_review") {
+    window.alert("해당 MSDS는 개정이 필요합니다. 현장 비치 필요시 보건담당자와 협의 바랍니다");
+  }
+  window.open(api.documentFileUrl(product.documentId), "_blank", "noopener,noreferrer");
 }

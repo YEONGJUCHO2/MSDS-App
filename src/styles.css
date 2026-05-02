@@ -303,6 +303,7 @@ select {
 
 .document-row-actions button,
 .document-row-actions a,
+.document-row-actions label.secondary-action,
 .sidebar-delete {
   display: inline-flex;
   align-items: center;
@@ -322,6 +323,81 @@ select {
   border-color: #c8d3dd;
   background: #ffffff;
   color: #253241;
+}
+
+.icon-text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attachment-action {
+  gap: 5px;
+}
+
+.replacement-action {
+  position: relative;
+  overflow: hidden;
+  min-width: 64px;
+}
+
+.replacement-action input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.document-file-title-row {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+  gap: 5px;
+}
+
+.title-icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #536170;
+  cursor: pointer;
+}
+
+.title-icon-button:hover {
+  border-color: #c8d3dd;
+  background: #f8fafc;
+  color: #1d4ed8;
+}
+
+.document-rename-control {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.document-rename-control input {
+  min-width: 150px;
+  max-width: 220px;
+  height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #d8e1ea;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.compact-filter input,
+.compact-filter select {
+  min-width: 130px;
 }
 
 .document-file-button {
@@ -1392,7 +1468,8 @@ th {
   white-space: nowrap;
 }
 
-.status-pill.normal {
+.status-pill.normal,
+.status-pill.approved {
   color: #11533f;
   background: #dff6ed;
 }

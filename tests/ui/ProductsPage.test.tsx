@@ -5,6 +5,7 @@ import { ProductsPage } from "../../src/pages/ProductsPage";
 vi.mock("../../src/api/client", () => ({
   api: {
     documents: vi.fn(),
+    documentFileUrl: (documentId: string) => `/api/documents/${documentId}/file`,
     deleteProduct: vi.fn(),
     linkProductToDocument: vi.fn(),
     products: vi.fn()
@@ -371,5 +372,55 @@ describe("ProductsPage", () => {
 
     await waitFor(() => expect(api.deleteProduct).toHaveBeenCalledWith("product-1"));
     expect(await screen.findByText("현장관리 연결을 삭제했습니다.")).toBeInTheDocument();
+  });
+
+  it("filters site MSDS by review state and warns before opening review-needed attachments", async () => {
+    vi.mocked(api.products).mockResolvedValue({
+      products: [
+        {
+          productId: "product-1",
+          documentId: "doc-1",
+          documentFileName: "needs-review.pdf",
+          productName: "needs-review",
+          supplier: "",
+          manufacturer: "",
+          siteNames: "1공장",
+          registrationStatus: "linked_to_site",
+          documentStatus: "needs_review",
+          documentReviewState: "needs_review",
+          componentCount: 5,
+          queueCount: 0
+        },
+        {
+          productId: "product-2",
+          documentId: "doc-2",
+          documentFileName: "approved.pdf",
+          productName: "approved",
+          supplier: "",
+          manufacturer: "",
+          siteNames: "1공장",
+          registrationStatus: "linked_to_site",
+          documentStatus: "needs_review",
+          documentReviewState: "approved",
+          componentCount: 3,
+          queueCount: 9
+        }
+      ]
+    });
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => undefined);
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(<ProductsPage />);
+
+    expect(await screen.findByText(/needs-review\.pdf/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("상태"), { target: { value: "approved" } });
+    expect(screen.getByText(/approved\.pdf/)).toBeInTheDocument();
+    expect(screen.queryByText(/needs-review\.pdf/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("상태"), { target: { value: "needs_review" } });
+    fireEvent.click(screen.getByRole("button", { name: "needs-review.pdf 첨부파일 열기" }));
+
+    expect(alertSpy).toHaveBeenCalledWith("해당 MSDS는 개정이 필요합니다. 현장 비치 필요시 보건담당자와 협의 바랍니다");
+    expect(openSpy).toHaveBeenCalledWith("/api/documents/doc-1/file", "_blank", "noopener,noreferrer");
   });
 });

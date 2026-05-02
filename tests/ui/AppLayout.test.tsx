@@ -31,6 +31,7 @@ describe("App layout", () => {
     expect(screen.queryByTitle("Msds")).not.toBeInTheDocument();
     expect(screen.getByTitle("물질정보")).toBeInTheDocument();
     expect(screen.getByTitle("현장관리")).toBeInTheDocument();
+    expect(screen.queryByTitle("개정 비교")).not.toBeInTheDocument();
     expect(screen.queryByTitle("제품/현장")).not.toBeInTheDocument();
     expect(screen.queryByTitle("감시/재조회")).not.toBeInTheDocument();
     expect(screen.queryByTitle("검수")).not.toBeInTheDocument();

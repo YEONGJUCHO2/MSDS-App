@@ -54,6 +54,7 @@ function readSheetRows(xml: string, sharedStrings: string[]) {
     .map((rowMatch) => Array.from(rowMatch[0].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/g))
       .map((cellMatch) => readCellValue(cellMatch[1], cellMatch[2], sharedStrings))
       .filter((value) => value.trim()))
+    .map((row) => normalizeSharedStringRow(row, sharedStrings))
     .filter((row) => row.length > 0);
 }
 
@@ -66,6 +67,30 @@ function readCellValue(attributes: string, xml: string, sharedStrings: string[])
     return extractXmlText(xml);
   }
   return decodeXmlEntities(xml.match(/<v>([\s\S]*?)<\/v>/)?.[1]?.trim() ?? "");
+}
+
+function normalizeSharedStringRow(row: string[], sharedStrings: string[]) {
+  const shouldResolve = row.some((value) => containsMeaningfulText(value))
+    && row.filter((value) => canResolveSharedStringIndex(value, sharedStrings)).length >= Math.max(1, Math.floor(row.length / 2));
+  const resolved = shouldResolve
+    ? row.map((value) => canResolveSharedStringIndex(value, sharedStrings) ? sharedStrings[Number(value)] : value)
+    : row;
+  return removeAdjacentDuplicateCells(resolved).map((value) => value.trim()).filter(Boolean);
+}
+
+function canResolveSharedStringIndex(value: string, sharedStrings: string[]) {
+  if (!/^\d+$/.test(value.trim())) return false;
+  const index = Number(value.trim());
+  const sharedValue = sharedStrings[index]?.trim();
+  return Boolean(sharedValue && containsMeaningfulText(sharedValue));
+}
+
+function containsMeaningfulText(value: string) {
+  return /[가-힣A-Za-z]/.test(value) || /\d{2,7}-\d{2}-\d/.test(value) || /\d{2,4}[-)]\d{3,4}/.test(value) || /[~%/]/.test(value);
+}
+
+function removeAdjacentDuplicateCells(row: string[]) {
+  return row.filter((value, index) => value !== row[index - 1]);
 }
 
 function readZipEntries(buffer: Buffer) {

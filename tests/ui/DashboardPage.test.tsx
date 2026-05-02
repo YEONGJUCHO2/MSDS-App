@@ -63,13 +63,13 @@ describe("DashboardPage", () => {
     expect(screen.getByText("2026-04-25 · 화학물질 3 · 검수 1")).toBeInTheDocument();
     expect(screen.getByText("2026-04-25 · 화학물질 2 · 검수 0")).toBeInTheDocument();
     expect(screen.getAllByText("검수 필요").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("등록됨").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("검수 완료").length).toBeGreaterThan(0);
     expect(screen.queryByText("needs_review")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "검수 필요1" }));
     expect(onNavigate).toHaveBeenCalledWith("review");
     fireEvent.click(screen.getByRole("button", { name: "개정 필요0" }));
-    expect(onNavigate).toHaveBeenCalledWith("revisions");
+    expect(onNavigate).toHaveBeenCalledWith("review");
 
     fireEvent.click(screen.getByRole("button", { name: "sample.pdf 삭제" }));
     expect(onDeleteDocument).toHaveBeenCalledWith("doc-1");
@@ -107,6 +107,36 @@ describe("DashboardPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "CA-13R(부정형) 내화물.pdf MSDS에서 보기" }));
     expect(onOpenDocument).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("counts review-needed MSDS from document state instead of stale row queue totals", () => {
+    const documents: DocumentSummary[] = [
+      {
+        documentId: "doc-1",
+        fileName: "approved.pdf",
+        status: "needs_review",
+        reviewState: "approved",
+        uploadedAt: "2026-04-29T00:00:00.000Z",
+        componentCount: 4,
+        queueCount: 7
+      }
+    ];
+    const queueItems: ReviewQueueItem[] = [
+      {
+        queueId: "queue-1",
+        documentId: "doc-1",
+        fieldType: "component",
+        label: "old queue",
+        candidateValue: "",
+        evidence: "legacy",
+        reviewStatus: "needs_review",
+        createdAt: "2026-04-29T00:00:00.000Z"
+      }
+    ];
+
+    render(<DashboardPage documents={documents} queueItems={queueItems} onDeleteDocument={vi.fn()} onNavigate={vi.fn()} onOpenDocument={vi.fn()} onRecheckDocuments={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "검수 필요0" })).toBeInTheDocument();
   });
 
   it("selects paginated uploaded MSDS documents for batch lookup", () => {
@@ -218,7 +248,7 @@ describe("DashboardPage", () => {
     );
 
     expect(screen.getByRole("columnheader", { name: "첨부파일" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "first.pdf 첨부파일 다운로드" })).toHaveAttribute("href", "/api/documents/doc-1/file");
+    expect(screen.getByRole("link", { name: "first.pdf 첨부파일 열기" })).toHaveAttribute("href", "/api/documents/doc-1/file");
     expect(screen.getByRole("button", { name: "선택 첨부 다운로드" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "first.pdf 삭제" })).toHaveClass("icon-danger-action");
 
@@ -229,5 +259,68 @@ describe("DashboardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "선택 첨부 다운로드" }));
 
     expect(openSpy).toHaveBeenCalledWith("/api/documents/doc-1/file", "_blank", "noopener,noreferrer");
+  });
+
+  it("filters by registration date and review state, renames, and offers replacement upload only for review-needed MSDS", () => {
+    const onRenameDocument = vi.fn();
+    const onUploadReplacement = vi.fn();
+    const documents: DocumentSummary[] = [
+      {
+        documentId: "doc-1",
+        fileName: "needs-update.pdf",
+        status: "needs_review",
+        reviewState: "needs_review",
+        uploadedAt: "2026-04-29T00:00:00.000Z",
+        componentCount: 4,
+        queueCount: 0
+      },
+      {
+        documentId: "doc-2",
+        fileName: "approved.pdf",
+        status: "needs_review",
+        reviewState: "approved",
+        uploadedAt: "2026-04-10T00:00:00.000Z",
+        componentCount: 3,
+        queueCount: 8
+      }
+    ];
+
+    render(
+      <DashboardPage
+        documents={documents}
+        queueItems={[]}
+        onDeleteDocument={vi.fn()}
+        onNavigate={vi.fn()}
+        onOpenDocument={vi.fn()}
+        onRenameDocument={onRenameDocument}
+        onRecheckDocuments={vi.fn()}
+        onUploadReplacement={onUploadReplacement}
+      />
+    );
+
+    expect(screen.queryByLabelText("등록 시작일")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "등록일 조회" }));
+    fireEvent.change(screen.getByLabelText("등록 시작일"), { target: { value: "2026-04-20" } });
+    expect(screen.getByText("needs-update.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("approved.pdf")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("등록 종료일")).toHaveAttribute("max", "2026-10-20");
+
+    fireEvent.change(screen.getByLabelText("등록 시작일"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("검수 상태"), { target: { value: "approved" } });
+    expect(screen.getByText("approved.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("needs-update.pdf")).not.toBeInTheDocument();
+    expect(screen.getAllByText("검수 완료").length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByLabelText("검수 상태"), { target: { value: "needs_review" } });
+    expect(screen.queryByLabelText("needs-update.pdf 이름 변경")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "needs-update.pdf 이름 수정" }));
+    fireEvent.change(screen.getByLabelText("needs-update.pdf 이름 변경"), { target: { value: "renamed.pdf" } });
+    fireEvent.click(screen.getByRole("button", { name: "needs-update.pdf 이름 저장" }));
+    expect(onRenameDocument).toHaveBeenCalledWith("doc-1", "renamed.pdf");
+
+    const replacement = new File(["replacement"], "replacement.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("needs-update.pdf 새 MSDS 재첨부"), { target: { files: [replacement] } });
+    expect(onUploadReplacement).toHaveBeenCalledWith("doc-1", replacement);
+    expect(screen.getByLabelText("needs-update.pdf 첨부파일 열기")).toHaveTextContent("첨부");
   });
 });

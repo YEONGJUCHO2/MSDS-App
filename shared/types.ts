@@ -13,6 +13,8 @@ export type ProcessingStatus =
   | "needs_review"
   | "approved";
 
+export type DocumentReviewState = "approved" | "needs_review";
+
 export type RegulatoryCandidateStatus =
   | "해당"
   | "비해당"
@@ -95,6 +97,7 @@ export interface ProductSummary {
   siteNames: string;
   registrationStatus: string;
   documentStatus?: ProcessingStatus | "";
+  documentReviewState?: DocumentReviewState;
   componentCount?: number;
   queueCount?: number;
 }
@@ -136,6 +139,12 @@ export interface DocumentSummary {
   documentId: string;
   fileName: string;
   status: ProcessingStatus;
+  reviewState?: DocumentReviewState;
+  reviewReason?: string;
+  reviewRequiredAt?: string;
+  reviewCompletedAt?: string;
+  lastRegulatoryCheckedAt?: string;
+  replacementUploadedAt?: string;
   uploadedAt: string;
   componentCount: number;
   queueCount: number;

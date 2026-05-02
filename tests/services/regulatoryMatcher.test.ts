@@ -132,6 +132,56 @@ describe("regulatory matcher", () => {
     ]);
   });
 
+  it("marks a previously approved MSDS as review-needed when recheck finds a new official regulatory hit", async () => {
+    const db = new Database(":memory:");
+    migrate(db);
+    process.env.KOSHA_LAW_API_BASE_URL = "https://msds.kosha.or.kr/MSDSInfo/kcic";
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.endsWith("/msdssearchLaw.do")) {
+        return {
+          ok: true,
+          text: async () => "<tr><td><a href=\"javascript:getDetail('law','001008','');\">일산화탄소</a></td><td>630-08-0</td></tr>"
+        };
+      }
+      return {
+        ok: true,
+        text: async () => JSON.stringify({
+          resultLawDetail2: null,
+          resultLawDetail3: null,
+          resultLawDetail4: null,
+          resultLawDetail5: null,
+          resultLawDetail: [
+            { ITEM_DETAIL: "10204", MAX_MIN_DIV: "관리대상유해물질", MAX_VALUE: null, MAX_UNIT: null }
+          ]
+        })
+      };
+    }));
+    insertDocument(db, { documentId: "doc-1", fileName: "sample.pdf", fileHash: "hash", storagePath: "", status: "needs_review" });
+    insertComponentRows(db, "doc-1", [{
+      rowId: "row-1",
+      rowIndex: 0,
+      rawRowText: "Carbon monoxide 630-08-0 1~5%",
+      casNoCandidate: "630-08-0",
+      chemicalNameCandidate: "Carbon monoxide",
+      contentMinCandidate: "1",
+      contentMaxCandidate: "5",
+      contentSingleCandidate: "",
+      contentText: "1~5",
+      confidence: 0.82,
+      evidenceLocation: "SECTION 3 / row 1",
+      reviewStatus: "needs_review"
+    }]);
+
+    const result = await recheckDocumentRegulatoryData(db, "doc-1");
+
+    expect(result).toMatchObject({ documentId: "doc-1", checkedRows: 1, matchedRows: 1 });
+    expect(db.prepare("SELECT review_state AS reviewState, review_reason AS reviewReason, last_regulatory_checked_at AS checkedAt FROM documents").get()).toMatchObject({
+      reviewState: "needs_review",
+      reviewReason: "official_regulatory_hit"
+    });
+    expect((db.prepare("SELECT last_regulatory_checked_at AS checkedAt FROM documents").get() as { checkedAt: string }).checkedAt).not.toBe("");
+  });
+
   it("rechecks selected watchlist rows and records the latest lookup result", async () => {
     const db = new Database(":memory:");
     migrate(db);
