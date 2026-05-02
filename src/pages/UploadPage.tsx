@@ -1,7 +1,21 @@
 import { LoaderCircle, Upload } from "lucide-react";
-import { DragEvent, useState } from "react";
+import { DragEvent, useEffect, useState } from "react";
 import { MAX_UPLOAD_FILES_PER_BATCH } from "../../shared/uploadLimits";
 import { type UploadTaskState, useUploadTask } from "../hooks/useUploadTask";
+
+const uploadAccept = [
+  "application/pdf",
+  ".pdf",
+  ".docx",
+  ".xlsx",
+  ".csv"
+].join(",");
+
+const uploadProgressMessages = [
+  "AI가 문서를 분석중입니다",
+  "API와 대조중입니다",
+  "성분표를 사내 입력 포맷으로 정리중입니다"
+];
 
 type UploadPageProps = {
   onUploaded?: () => void;
@@ -36,13 +50,13 @@ export function UploadPage({ onUploaded = () => undefined, uploadTask, onFilesSe
         onDrop={handleDrop}
       >
         <Upload aria-hidden="true" />
-        <strong>{task.busy ? "업로드 처리중" : "MSDS PDF 업로드"}</strong>
-        <span>PDF 파일을 선택하거나 이 영역에 끌어다 놓으세요.</span>
+        <strong>{task.busy ? "업로드 처리중" : "MSDS 문서 업로드"}</strong>
+        <span>PDF, DOCX, XLSX, CSV 파일을 선택하거나 이 영역에 끌어다 놓으세요.</span>
         <input
           data-testid="msds-file-input"
           disabled={task.busy}
           type="file"
-          accept="application/pdf"
+          accept={uploadAccept}
           multiple
           onChange={(event) => void startUpload(event.target.files)}
         />
@@ -53,18 +67,41 @@ export function UploadPage({ onUploaded = () => undefined, uploadTask, onFilesSe
 }
 
 export function UploadTaskFeedback({ task }: { task: UploadTaskState }) {
+  const [activeStageIndex, setActiveStageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!task.busy) {
+      setActiveStageIndex(0);
+      return undefined;
+    }
+    const interval = window.setInterval(() => {
+      setActiveStageIndex((current) => (current + 1) % uploadProgressMessages.length);
+    }, 1500);
+    return () => window.clearInterval(interval);
+  }, [task.busy]);
+
   return (
     <>
       {task.busy ? (
         <section aria-live="polite" className="upload-progress-panel">
           <div className="upload-progress-title">
             <LoaderCircle aria-hidden="true" className="upload-spinner" />
-            <div>
-              <strong>업로드 중 {task.pendingFiles.length}/{MAX_UPLOAD_FILES_PER_BATCH}</strong>
-              <span>파일을 분석하고 목록에 반영하는 중입니다.</span>
-            </div>
+          <div>
+            <strong>업로드 중 {task.pendingFiles.length}/{MAX_UPLOAD_FILES_PER_BATCH}</strong>
+            <span aria-label="현재 업로드 단계">{uploadProgressMessages[activeStageIndex]}</span>
           </div>
-          <div aria-label="MSDS 업로드 진행 중" className="upload-progress-bar" role="progressbar">
+        </div>
+          <div className="upload-stage-list">
+            {uploadProgressMessages.map((message, index) => (
+              <span className={index === activeStageIndex ? "active" : ""} key={message}>{message}</span>
+            ))}
+          </div>
+          <div
+            aria-label="MSDS 업로드 진행 중"
+            aria-valuetext={uploadProgressMessages[activeStageIndex]}
+            className="upload-progress-bar"
+            role="progressbar"
+          >
             <span />
           </div>
           <ul className="upload-pending-list">

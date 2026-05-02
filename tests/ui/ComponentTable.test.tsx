@@ -49,13 +49,124 @@ describe("ComponentTable", () => {
 
     expect(screen.getByRole("columnheader", { name: "작업환경측정 대상물질" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "특수건강검진대상물질" })).toBeInTheDocument();
-    expect(screen.queryByRole("cell", { name: "6개월" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("cell", { name: "Y" })).toHaveLength(1);
+    expect(screen.getByRole("cell", { name: "6개월" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "6개월" })).toHaveClass("regulatory-hit-cell");
 
     fireEvent.click(screen.getByRole("button", { name: "전체 복사" }));
 
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("CAS No.\t화학물질\tMIN\tMAX\t단일\t특별관리물질"));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining("1344-28-1\t산화알루미늄\t1\t5\t"));
+  });
+
+  it("shows only the needed internal columns and displays KOSHA periods instead of Y", () => {
+    render(
+      <ComponentTable
+        rows={[
+          {
+            rowId: "row-1",
+            rowIndex: 0,
+            rawRowText: "일산화탄소 630-08-0 1~5",
+            casNoCandidate: "630-08-0",
+            chemicalNameCandidate: "일산화탄소",
+            contentMinCandidate: "1",
+            contentMaxCandidate: "5",
+            contentSingleCandidate: "",
+            contentText: "1~5",
+            confidence: 0.92,
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            regulatoryMatches: [
+              {
+                matchId: "match-1",
+                rowId: "row-1",
+                documentId: "doc-1",
+                casNo: "630-08-0",
+                category: "workEnvironmentMeasurement",
+                status: "공식 API 조회됨",
+                sourceType: "official_api",
+                sourceName: "KOSHA 물질규제정보",
+                sourceUrl: "https://msds.kosha.or.kr/MSDSInfo/kcic/msdsdetailLaw.do",
+                evidenceText: "10202 작업환경측정대상물질 6개월",
+                checkedAt: "2026-04-29T00:00:00.000Z"
+              },
+              {
+                matchId: "match-2",
+                rowId: "row-1",
+                documentId: "doc-1",
+                casNo: "630-08-0",
+                category: "specialHealthExam",
+                status: "공식 API 조회됨",
+                sourceType: "official_api",
+                sourceName: "KOSHA 물질규제정보",
+                sourceUrl: "https://msds.kosha.or.kr/MSDSInfo/kcic/msdsdetailLaw.do",
+                evidenceText: "10210 특수건강진단대상물질 12개월",
+                checkedAt: "2026-04-29T00:00:00.000Z"
+              },
+              {
+                matchId: "match-3",
+                rowId: "row-1",
+                documentId: "doc-1",
+                casNo: "630-08-0",
+                category: "existingChemical",
+                status: "공식 API 조회됨",
+                sourceType: "official_api",
+                sourceName: "KOSHA 물질규제정보",
+                sourceUrl: "https://msds.kosha.or.kr/MSDSInfo/kcic/msdsdetailLaw.do",
+                evidenceText: "기존화학물질",
+                checkedAt: "2026-04-29T00:00:00.000Z"
+              }
+            ]
+          }
+        ]}
+      />
+    );
+
+    expect(screen.getByRole("columnheader", { name: "작업환경측정 대상물질" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "특수건강검진대상물질" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "기존화학물질" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "중점관리물질" })).not.toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "6개월" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "12개월" })).toBeInTheDocument();
+  });
+
+  it("highlights official API regulatory hits that need human review", () => {
+    render(
+      <ComponentTable
+        rows={[
+          {
+            rowId: "row-1",
+            rowIndex: 0,
+            rawRowText: "일산화탄소 630-08-0 1~5",
+            casNoCandidate: "630-08-0",
+            chemicalNameCandidate: "일산화탄소",
+            contentMinCandidate: "1",
+            contentMaxCandidate: "5",
+            contentSingleCandidate: "",
+            contentText: "1~5",
+            confidence: 0.92,
+            evidenceLocation: "SECTION 3 / row 1",
+            reviewStatus: "needs_review",
+            regulatoryMatches: [
+              {
+                matchId: "match-1",
+                rowId: "row-1",
+                documentId: "doc-1",
+                casNo: "630-08-0",
+                category: "specialManagement",
+                status: "공식 API 조회됨",
+                sourceType: "official_api",
+                sourceName: "KOSHA 물질규제정보",
+                sourceUrl: "https://msds.kosha.or.kr/MSDSInfo/kcic/msdsdetailLaw.do",
+                evidenceText: "특별관리물질",
+                checkedAt: "2026-04-29T00:00:00.000Z"
+              }
+            ]
+          }
+        ]}
+      />
+    );
+
+    expect(screen.getByRole("cell", { name: "Y" })).toHaveClass("regulatory-review-hit");
   });
 
   it("shows feedback instead of throwing a console error when clipboard write is denied", async () => {

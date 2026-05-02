@@ -102,4 +102,60 @@ describe("extractDocumentBasicInfo", () => {
       "최종개정일자": "2013-07-01"
     });
   });
+
+  it("does not use emergency phone labels as supplier candidates in split label blocks", () => {
+    const fields = extractDocumentBasicInfo({
+      fileName: "CA-13R(부정형) 내화물.pdf",
+      queueCount: 1,
+      textContent: [
+        "1. 화학제품과 회사에 관한 정보",
+        "제품명 :",
+        "제품의 권고 용도와 사용상의 제한 :",
+        "공급자 정보",
+        "공급회사명 :",
+        "주소 :",
+        "긴급전화번호 :",
+        "CA-13R(부정형) 내화물",
+        "내화물 보수재",
+        "조선내화 주식회사",
+        "전라남도 광양시 산업로 55",
+        "061-760-1234",
+        "2. 유해성·위험성"
+      ].join("\n")
+    });
+
+    expect(Object.fromEntries(fields.map((field) => [field.label, field.value]))).toMatchObject({
+      "공급사": "조선내화 주식회사",
+      "제조사": "조선내화 주식회사",
+      "대표전화": "061-760-1234",
+      "제품명": "CA-13R(부정형) 내화물",
+      "용도": "내화물 보수재"
+    });
+  });
+
+  it("reads Korean section labels with 가나다 prefixes from KOSHA-style Excel text", () => {
+    const fields = extractDocumentBasicInfo({
+      fileName: "복사본 부정형 2_CA-90R.xlsx",
+      queueCount: 0,
+      textContent: [
+        "1. 화학제품과 회사에 관한 정보",
+        "가. 제품명",
+        "- CA-90R",
+        "나. 제품의 권고 용도와 사용상의 제한",
+        "- 용도\t: 내화/방연제",
+        "다. 제조자/공급자/유통업자 정보",
+        "○ 제조자 정보",
+        "- 회사명\t: 포스코퓨처엠",
+        "- 전화번호\t054-290-0538",
+        "2. 유해성·위험성"
+      ].join("\n")
+    });
+
+    expect(Object.fromEntries(fields.map((field) => [field.label, field.value]))).toMatchObject({
+      "공급사": "포스코퓨처엠",
+      "대표전화": "054-290-0538",
+      "제품명": "CA-90R",
+      "용도": "내화/방연제"
+    });
+  });
 });

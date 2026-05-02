@@ -1,10 +1,15 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
+import { COMPONENT_EXPORT_REGULATORY_CATEGORIES } from "../../shared/componentExport";
 import { getDb } from "../db/connection";
 import { deleteProductRecord } from "../db/repositories";
 import { normalizeUploadedFileName } from "../services/fileName";
 
 export const productsRouter = Router();
+
+const officialComponentExportCategoryList = COMPONENT_EXPORT_REGULATORY_CATEGORIES
+  .map((category) => `'${category.replace(/'/g, "''")}'`)
+  .join(", ");
 
 productsRouter.get("/", (_req, res) => {
   res.json({ products: listProducts() });
@@ -101,12 +106,34 @@ function listProducts() {
       products.site_names AS siteNames,
       products.registration_status AS registrationStatus,
       COALESCE(documents.status, '') AS documentStatus,
+      COALESCE(documents.review_state, 'approved') AS documentReviewState,
       COUNT(DISTINCT components.row_id) AS componentCount,
-      COUNT(DISTINCT review_queue.queue_id) AS queueCount
+      COUNT(DISTINCT review_queue.queue_id)
+        + COUNT(DISTINCT official_review_matches.match_id) AS queueCount
     FROM products
     LEFT JOIN documents ON documents.document_id = products.document_id
     LEFT JOIN components ON components.document_id = products.document_id
-    LEFT JOIN review_queue ON review_queue.document_id = products.document_id AND review_queue.review_status = 'needs_review'
+    LEFT JOIN review_queue ON review_queue.document_id = products.document_id
+      AND review_queue.review_status = 'needs_review'
+      AND (
+        review_queue.field_type != 'component'
+        OR EXISTS (
+          SELECT 1 FROM components cq
+          WHERE cq.row_id = review_queue.entity_id
+            AND (
+              cq.cas_no_candidate = ''
+              OR cq.chemical_name_candidate = ''
+              OR cq.content_text = ''
+              OR cq.ai_review_status = 'ai_needs_attention'
+              OR cq.regulatory_match_status IN ('api_key_required', 'no_match')
+            )
+        )
+      )
+    LEFT JOIN regulatory_matches official_review_matches
+      ON official_review_matches.document_id = products.document_id
+      AND official_review_matches.source_type = 'official_api'
+      AND official_review_matches.status NOT LIKE '비해당%'
+      AND official_review_matches.category IN (${officialComponentExportCategoryList})
     GROUP BY products.product_id
     ORDER BY products.created_at DESC
   `).all();

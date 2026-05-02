@@ -40,6 +40,12 @@ export type UploadBatchResult =
       error: string;
     };
 
+export interface DocumentRecheckResult {
+  documentId: string;
+  checkedRows: number;
+  matchedRows: number;
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(resolveApiUrl(url), init);
   if (!response.ok) {
@@ -56,8 +62,15 @@ export function resolveApiUrl(url: string) {
 
 export const api = {
   documents: () => request<{ documents: DocumentSummary[] }>("/api/documents"),
+  documentFileUrl: (documentId: string) => resolveApiUrl(`/api/documents/${documentId}/file`),
   deleteDocument: (documentId: string) =>
     request<{ documentId: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}`, { method: "DELETE" }),
+  renameDocument: (documentId: string, fileName: string) =>
+    request<{ documentId: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileName })
+    }),
   documentBasicInfo: (documentId: string) => request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`),
   saveDocumentBasicInfo: (documentId: string, fields: BasicInfoField[]) =>
     request<DocumentBasicInfo>(`/api/documents/${documentId}/basic-info`, {
@@ -83,6 +96,12 @@ export const api = {
     request<{ rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}`, { method: "DELETE" }),
   recheckComponent: (documentId: string, rowId: string) =>
     request<{ result: RegulatoryRecheckResult; rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}/recheck`, { method: "POST" }),
+  recheckDocuments: (documentIds: string[]) =>
+    request<{ documentCount: number; rowCount: number; results: DocumentRecheckResult[] }>("/api/documents/recheck", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documentIds })
+    }),
   reviewComponent: (documentId: string, rowId: string, reviewStatus: ReviewStatus) =>
     request<{ rows: Section3Row[] }>(`/api/documents/${documentId}/components/${rowId}/review`, {
       method: "POST",
@@ -110,6 +129,14 @@ export const api = {
     const form = new FormData();
     form.append("file", file);
     return request<{ documentId: string; status: string; message: string }>("/api/documents/upload", { method: "POST", body: form });
+  },
+  uploadReplacement: (documentId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ documentId: string; status: string; message: string; documents: DocumentSummary[] }>(`/api/documents/${documentId}/replacement`, {
+      method: "POST",
+      body: form
+    });
   },
   uploadBatch: (files: File[]) => {
     const form = new FormData();

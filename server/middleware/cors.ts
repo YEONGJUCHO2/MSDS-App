@@ -1,8 +1,10 @@
 import type { NextFunction, Request, Response } from "express";
 
-const defaultAllowedOrigins = [
+export const defaultAllowedOrigins = [
   "http://localhost:5173",
-  "http://127.0.0.1:5173"
+  "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174"
 ];
 
 export function parseAllowedOrigins(value: string | undefined) {

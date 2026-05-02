@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { nanoid } from "nanoid";
+import { COMPONENT_EXPORT_REGULATORY_CATEGORIES } from "../../shared/componentExport";
 import type { AiReviewStatus, BasicInfoField, DocumentSummary, RegulatoryMatch, RegulatoryMatchStatus, ReviewStatus, Section3Row } from "../../shared/types";
 import { normalizeUploadedFileName } from "../services/fileName";
 
@@ -8,25 +9,121 @@ type ComponentCandidateInput = Pick<
   "casNoCandidate" | "chemicalNameCandidate" | "contentMinCandidate" | "contentMaxCandidate" | "contentSingleCandidate"
 >;
 
+const officialComponentExportCategoryList = COMPONENT_EXPORT_REGULATORY_CATEGORIES
+  .map((category) => `'${category.replace(/'/g, "''")}'`)
+  .join(", ");
+
+const officialComponentExportReviewCountSql = `
+  SELECT COUNT(DISTINCT rm.match_id)
+  FROM regulatory_matches rm
+  WHERE rm.document_id = d.document_id
+    AND rm.source_type = 'official_api'
+    AND rm.status NOT LIKE '비해당%'
+    AND rm.category IN (${officialComponentExportCategoryList})
+`;
+
 export function insertDocument(
   db: Database.Database,
   input: { documentId?: string; fileName: string; fileHash: string; storagePath: string; status: string; textContent?: string; pageCount?: number }
 ) {
   const documentId = input.documentId ?? nanoid();
   db.prepare(`
-    INSERT INTO documents (document_id, file_name, file_hash, storage_path, status, uploaded_at, text_content, page_count)
-    VALUES (@documentId, @fileName, @fileHash, @storagePath, @status, @uploadedAt, @textContent, @pageCount)
+    INSERT INTO documents (document_id, file_name, file_hash, storage_path, status, review_state, uploaded_at, text_content, page_count)
+    VALUES (@documentId, @fileName, @fileHash, @storagePath, @status, @reviewState, @uploadedAt, @textContent, @pageCount)
   `).run({
     documentId,
     fileName: input.fileName,
     fileHash: input.fileHash,
     storagePath: input.storagePath,
     status: input.status,
+    reviewState: "approved",
     uploadedAt: new Date().toISOString(),
     textContent: input.textContent ?? "",
     pageCount: input.pageCount ?? 0
   });
   return documentId;
+}
+
+export function renameDocument(db: Database.Database, documentId: string, fileName: string) {
+  const normalizedFileName = normalizeUploadedFileName(fileName);
+  if (!normalizedFileName) throw new Error("fileName is required");
+  const result = db.prepare("UPDATE documents SET file_name = ? WHERE document_id = ?").run(normalizedFileName, documentId);
+  return result.changes > 0;
+}
+
+export function markDocumentNeedsReview(db: Database.Database, documentId: string, reason: string) {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE documents
+    SET
+      review_state = 'needs_review',
+      review_reason = @reason,
+      review_required_at = CASE WHEN review_required_at = '' THEN @now ELSE review_required_at END,
+      last_regulatory_checked_at = @now
+    WHERE document_id = @documentId
+  `).run({ documentId, reason, now });
+  return result.changes > 0;
+}
+
+export function touchDocumentRegulatoryCheckedAt(db: Database.Database, documentId: string) {
+  const now = new Date().toISOString();
+  db.prepare("UPDATE documents SET last_regulatory_checked_at = ? WHERE document_id = ?").run(now, documentId);
+}
+
+export function approveDocumentAfterReplacement(db: Database.Database, documentId: string) {
+  const now = new Date().toISOString();
+  const result = db.prepare(`
+    UPDATE documents
+    SET
+      review_state = 'approved',
+      review_reason = '',
+      review_required_at = '',
+      review_completed_at = @now,
+      replacement_uploaded_at = @now
+    WHERE document_id = @documentId
+  `).run({ documentId, now });
+  return result.changes > 0;
+}
+
+export function prepareDocumentReplacement(
+  db: Database.Database,
+  input: { documentId: string; fileName: string; fileHash: string; storagePath: string }
+) {
+  const normalizedFileName = normalizeUploadedFileName(input.fileName);
+  const transaction = db.transaction(() => {
+    db.prepare("DELETE FROM document_basic_info WHERE document_id = ?").run(input.documentId);
+    db.prepare("DELETE FROM regulatory_matches WHERE document_id = ?").run(input.documentId);
+    db.prepare("DELETE FROM review_queue WHERE document_id = ?").run(input.documentId);
+    db.prepare("DELETE FROM components WHERE document_id = ?").run(input.documentId);
+    db.prepare(`
+      UPDATE documents
+      SET
+        file_name = @fileName,
+        file_hash = @fileHash,
+        storage_path = @storagePath,
+        status = 'uploaded',
+        text_content = '',
+        page_count = 0
+      WHERE document_id = @documentId
+    `).run({
+      documentId: input.documentId,
+      fileName: normalizedFileName,
+      fileHash: input.fileHash,
+      storagePath: input.storagePath
+    });
+    db.prepare(`
+      UPDATE products
+      SET document_file_name = @fileName
+      WHERE document_id = @documentId
+    `).run({ documentId: input.documentId, fileName: normalizedFileName });
+    pruneOrphanWatchlist(db);
+  });
+  transaction();
+}
+
+export function getDocumentStoragePath(db: Database.Database, documentId: string) {
+  return db.prepare("SELECT storage_path AS storagePath FROM documents WHERE document_id = ?")
+    .get(documentId) as { storagePath: string } | undefined;
 }
 
 export function upsertDocumentText(db: Database.Database, documentId: string, textContent: string, pageCount: number, status: string) {
@@ -214,9 +311,15 @@ export function listDocuments(db: Database.Database): DocumentSummary[] {
       d.document_id AS documentId,
       d.file_name AS fileName,
       d.status AS status,
+      d.review_state AS reviewState,
+      d.review_reason AS reviewReason,
+      d.review_required_at AS reviewRequiredAt,
+      d.review_completed_at AS reviewCompletedAt,
+      d.last_regulatory_checked_at AS lastRegulatoryCheckedAt,
+      d.replacement_uploaded_at AS replacementUploadedAt,
       d.uploaded_at AS uploadedAt,
       COUNT(DISTINCT c.row_id) AS componentCount,
-      COUNT(DISTINCT q.queue_id) AS queueCount
+      COUNT(DISTINCT q.queue_id) + (${officialComponentExportReviewCountSql}) AS queueCount
     FROM documents d
     LEFT JOIN components c ON c.document_id = d.document_id
     LEFT JOIN review_queue q ON q.document_id = d.document_id AND q.review_status = 'needs_review'
@@ -528,6 +631,18 @@ export function insertRegulatoryMatch(
 
 export function deleteRegulatoryMatchesForRow(db: Database.Database, rowId: string) {
   db.prepare("DELETE FROM regulatory_matches WHERE row_id = ?").run(rowId);
+}
+
+export function listOfficialReviewMatchKeysForDocument(db: Database.Database, documentId: string) {
+  return new Set((db.prepare(`
+    SELECT row_id AS rowId, category
+    FROM regulatory_matches
+    WHERE document_id = ?
+      AND source_type = 'official_api'
+      AND status NOT LIKE '비해당%'
+      AND category IN (${officialComponentExportCategoryList})
+  `).all(documentId) as Array<{ rowId: string; category: string }>)
+    .map((row) => `${row.rowId}:${row.category}`));
 }
 
 export function upsertWatchlist(db: Database.Database, input: { casNo: string; chemicalName: string; sourceName: string; status: string; checkedAt?: string }) {

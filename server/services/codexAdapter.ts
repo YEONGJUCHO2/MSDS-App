@@ -18,8 +18,10 @@ interface CodexAdapterOptions {
   enabled: boolean;
   command?: string;
   model?: string;
+  reasoningEffort?: string;
   timeoutMs?: number;
   runner?: (prompt: string) => Promise<string>;
+  spawnRunner?: (command: string, args: string[], prompt: string, timeoutMs: number) => Promise<string>;
 }
 
 export function createCodexAdapter(options: CodexAdapterOptions) {
@@ -122,10 +124,14 @@ async function runCodex(command: string, prompt: string, options: CodexAdapterOp
         "--output-last-message",
         outputFile
       ];
-      if (options.model) {
-        args.push("--model", options.model);
-      }
+      if (options.model) args.push("--model", options.model);
+      if (options.reasoningEffort) args.push("--config", `model_reasoning_effort="${options.reasoningEffort}"`);
       args.push("-");
+
+      if (options.spawnRunner) {
+        options.spawnRunner(command, args, prompt, options.timeoutMs ?? 60_000).then(resolve, reject);
+        return;
+      }
 
       const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
       const timeout = setTimeout(() => {

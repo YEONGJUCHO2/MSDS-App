@@ -36,6 +36,20 @@ export function createSupabaseDocumentStorage(options: SupabaseStorageOptions): 
       return { storagePath, fileHash };
     },
 
+    async read(storagePath) {
+      const response = await fetcher(`${baseUrl}/storage/v1/object/${options.bucket}/${encodeURIComponent(storagePath)}`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${options.serviceRoleKey}`
+        }
+      });
+      if (!response.ok) {
+        const message = await response.text().catch(() => "");
+        throw new Error(`Supabase Storage download failed: ${response.status} ${message}`.trim());
+      }
+      return Buffer.from(await response.arrayBuffer());
+    },
+
     async remove(storagePath) {
       if (!storagePath) return;
       const response = await fetcher(`${baseUrl}/storage/v1/object/${options.bucket}/${encodeURIComponent(storagePath)}`, {

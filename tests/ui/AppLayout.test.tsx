@@ -27,6 +27,15 @@ describe("App layout", () => {
     expect(await screen.findByTestId("app-shell")).toHaveClass("app-shell");
     expect(screen.getByTestId("app-nav")).toHaveClass("app-nav");
     expect(screen.getByTestId("app-content")).toHaveClass("content");
+    expect(screen.getByTitle("MSDS")).toBeInTheDocument();
+    expect(screen.queryByTitle("Msds")).not.toBeInTheDocument();
+    expect(screen.getByTitle("물질정보")).toBeInTheDocument();
+    expect(screen.getByTitle("현장관리")).toBeInTheDocument();
+    expect(screen.queryByTitle("개정 비교")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("제품/현장")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("감시/재조회")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("검수")).not.toBeInTheDocument();
+    expect(screen.queryByTitle("검수 큐")).not.toBeInTheDocument();
   });
 
   it("keeps the upload task visible and alive when navigating away from the upload page", async () => {
@@ -58,7 +67,8 @@ describe("App layout", () => {
       ]
     });
 
-    expect(await screen.findByText("2개 파일 업로드 완료")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("업로드 중 2/20")).not.toBeInTheDocument());
+    expect(screen.queryByText("2개 파일 업로드 완료")).not.toBeInTheDocument();
     await waitFor(() => expect(api.documents).toHaveBeenCalledTimes(3));
   });
 });

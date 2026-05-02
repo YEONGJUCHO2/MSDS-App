@@ -9,6 +9,14 @@ export type UploadTaskState = {
   uploadResults: UploadBatchResult[];
 };
 
+const supportedUploadExtensions = [".pdf", ".docx", ".xlsx", ".csv"];
+const supportedUploadTypes = new Set([
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/csv"
+]);
+
 export const idleUploadTask: UploadTaskState = {
   busy: false,
   message: "",
@@ -20,7 +28,7 @@ export function useUploadTask(onUploaded: () => void) {
   const [task, setTask] = useState<UploadTaskState>(idleUploadTask);
 
   async function startUpload(fileList: FileList | File[] | null | undefined) {
-    const files = Array.from(fileList ?? []).filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+    const files = Array.from(fileList ?? []).filter(isSupportedMsdsUpload);
     if (files.length === 0) return;
     if (files.length > MAX_UPLOAD_FILES_PER_BATCH) {
       setTask({
@@ -46,9 +54,9 @@ export function useUploadTask(onUploaded: () => void) {
       completed.forEach(() => onUploaded());
       setTask({
         busy: false,
-        message: formatUploadMessage(completed.length, failed.length),
+        message: failed.length > 0 ? formatUploadMessage(completed.length, failed.length) : "",
         pendingFiles: [],
-        uploadResults: result.results
+        uploadResults: failed.length > 0 ? result.results : []
       });
     } catch (error) {
       setTask({
@@ -61,6 +69,11 @@ export function useUploadTask(onUploaded: () => void) {
   }
 
   return { task, startUpload };
+}
+
+function isSupportedMsdsUpload(file: File) {
+  const fileName = file.name.toLowerCase();
+  return supportedUploadTypes.has(file.type) || supportedUploadExtensions.some((extension) => fileName.endsWith(extension));
 }
 
 function formatUploadMessage(completedCount: number, failedCount: number) {

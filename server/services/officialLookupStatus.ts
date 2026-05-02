@@ -3,6 +3,7 @@ import type { ApiProviderStatus } from "../../shared/types";
 import { countChemicalApiCache } from "../db/repositories";
 import { isKecoApiConfigured } from "./kecoChemicalApiClient";
 import { isOfficialApiConfigured } from "./koshaApiClient";
+import { isKoshaLawApiConfigured } from "./koshaLawApiClient";
 
 export function getOfficialLookupStatus(db: Database.Database): ApiProviderStatus[] {
   return [
@@ -14,9 +15,9 @@ export function getOfficialLookupStatus(db: Database.Database): ApiProviderStatu
     },
     {
       provider: "kosha",
-      label: "KOSHA MSDS 조회",
-      configured: isOfficialApiConfigured(),
-      cacheCount: countChemicalApiCache(db, "kosha")
+      label: "KOSHA MSDS/물질규제정보 조회",
+      configured: isOfficialApiConfigured() || isKoshaLawApiConfigured(),
+      cacheCount: countChemicalApiCache(db, "kosha") + countChemicalApiCache(db, "kosha_law")
     }
   ];
 }

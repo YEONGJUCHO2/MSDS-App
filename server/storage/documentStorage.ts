@@ -10,6 +10,7 @@ export interface StoredDocumentFile {
 
 export interface DocumentStorage {
   save(input: { documentId: string; fileName: string; buffer: Buffer }): Promise<StoredDocumentFile>;
+  read(storagePath: string): Promise<Buffer>;
   remove(storagePath: string): Promise<void>;
 }
 

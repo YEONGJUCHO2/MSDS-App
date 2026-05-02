@@ -56,4 +56,35 @@ describe("Codex adapter", () => {
       components: []
     })).toEqual(fields);
   });
+
+  it("passes the configured model and high reasoning effort to Codex CLI", async () => {
+    const calls: string[][] = [];
+    const adapter = createCodexAdapter({
+      enabled: true,
+      command: "codex",
+      model: "gpt-5.5",
+      reasoningEffort: "high",
+      spawnRunner: async (_command, args) => {
+        calls.push(args);
+        return JSON.stringify({
+          productName: "",
+          supplier: "",
+          manufacturer: "",
+          phone: "",
+          email: "",
+          use: "",
+          msdsNumber: "",
+          revisionDate: "",
+          revisionVersion: "",
+          components: []
+        });
+      }
+    });
+
+    await adapter.extractCandidates({ text: "3. 구성성분", rows: [] });
+
+    expect(calls[0]).toContain("--model");
+    expect(calls[0]).toContain("gpt-5.5");
+    expect(calls[0]).toEqual(expect.arrayContaining(["--config", "model_reasoning_effort=\"high\""]));
+  });
 });

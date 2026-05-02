@@ -7,7 +7,7 @@ export function QueuesPage({ items }: { items: ReviewQueueItem[] }) {
   return (
     <main className="panel">
       <div className="panel-title">
-        <h2>검수 필요 큐</h2>
+        <h2>물질정보 확인 필요</h2>
         <span>{pendingItems.length}건 대기 · 전체 {items.length}건</span>
       </div>
       <div className="queue-list">
